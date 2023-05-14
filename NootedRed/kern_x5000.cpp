@@ -203,7 +203,6 @@ void X5000::wrapUpdateContiguousPTEsWithDMAUsingAddr(void *that, uint64_t pe, ui
         that, pe, count, addr, flags, incr);
     FunctionCast(wrapUpdateContiguousPTEsWithDMAUsingAddr, callback->orgUpdateContiguousPTEsWithDMAUsingAddr)(that, pe,
         count, addr, flags, incr);
-    DBGLOG("x5000", "updateContiguousPTEsWithDMAUsingAddr >> void");
 }
 
 void X5000::wrapWriteTail(void *that) {
@@ -211,7 +210,6 @@ void X5000::wrapWriteTail(void *that) {
     NRed::i386_backtrace();
     NRed::sleepLoop("Calling orgWriteTail", 1000);
     FunctionCast(wrapWriteTail, callback->orgWriteTail)(that);
-    DBGLOG("x5000", "writeTail >> void");
 }
 
 uint32_t X5000::wrapWriteWritePTEPDECommand(void *that, void *buf, uint64_t pe, uint32_t count, uint64_t flags,
@@ -232,7 +230,6 @@ uint32_t X5000::wrapWriteWritePTEPDECommand(void *that, void *buf, uint64_t pe, 
     for (uint32_t i = 0; i < count; i++) {
         uint64_t toWrite = flags | addr;
         DBGLOG("x5000", "Writing 0x%llX to %p", toWrite, pe);
-        NRed::sleepLoop("Writing", 2000);
         *(volatile uint64_t *)pe = toWrite;
         addr += incr;
         pe += 8;

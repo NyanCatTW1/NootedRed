@@ -222,14 +222,27 @@ uint32_t X5000::wrapWriteWritePTEPDECommand(void *that, void *buf, uint64_t pe, 
     DBGLOG("x5000",
         "writeWritePTEPDECommand << (that: %p buf: %p pe: 0x%llX count: 0x%X flags: 0x%llX addr: 0x%llX incr: 0x%llX)",
         that, buf, pe, count, flags, addr, incr);
+
     count /= 2;
+
+    pe -= 0xF400000000ULL;
+    pe += NRed::callback->fbOffset;
+    auto *memDesc =
+        IOGeneralMemoryDescriptor::withPhysicalAddress(static_cast<IOPhysicalAddress>(pe), 8 * count, kIODirectionOut);
+    auto *map = memDesc->map();
+    pe = map->getVirtualAddress();
+
     for (uint32_t i = 0; i < count; i++) {
         uint64_t toWrite = flags | addr;
-        DBGLOG("x5000", "Writing %llX to %p", toWrite, pe);
+        DBGLOG("x5000", "Writing 0x%llX to %p", toWrite, pe);
         NRed::sleepLoop("Writing", 2000);
         *(volatile uint64_t *)pe = toWrite;
         addr += incr;
         pe += 8;
     }
+
+    map->unmap();
+    map->release();
+    memDesc->release();
     return 0;
 }

@@ -34,6 +34,7 @@ class X5000HWLibs {
     mach_vm_address_t orgPspCosWaitFor {0};
     mach_vm_address_t orgTtlDevSetAsicResetMode {0};
     mach_vm_address_t orgVWriteMmRegisterUlong {0};
+    mach_vm_address_t orgHdpHwInit {0};
 
     static uint32_t wrapSmuGetHwVersion();
     static AMDReturn wrapPspSwInit(uint32_t *inputData, void *outputData);
@@ -46,6 +47,7 @@ class X5000HWLibs {
     static AMDReturn wrapPspCosWaitFor(void *cos, uint64_t param2, uint64_t param3, uint64_t param4);
     static void wrapTtlDevSetAsicResetMode(void *ttl, uint32_t mode);
     static void wrapVWriteMmRegisterUlong(void *cail, uint32_t regIndex, uint32_t regVal);
+    static AMDReturn wrapHdpHwInit(void *gvm, void *initInfo, uint64_t param3);
     static AMDReturn hwLibsNoop();
     static AMDReturn hwLibsUnsupported();
 };

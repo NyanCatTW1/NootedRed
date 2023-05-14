@@ -81,6 +81,7 @@ bool X5000HWLibs::processKext(KernelPatcher &patcher, size_t index, mach_vm_addr
             {"_psp_cos_wait_for", wrapPspCosWaitFor, orgPspCosWaitFor},
             {"_ttlDevSetAsicResetMode", wrapTtlDevSetAsicResetMode, orgTtlDevSetAsicResetMode},
             {"_vWriteMmRegisterUlong", wrapVWriteMmRegisterUlong, orgVWriteMmRegisterUlong},
+            {"_hdp_hw_init", wrapHdpHwInit, orgHdpHwInit},
             {"_smu_9_0_1_full_asic_reset", hwLibsNoop},
         };    // NOTE: IF YOU ADD A NEW WRAP, YOU WILL HAVE TO ADD IT BEFORE THE LINE ABOVE
         auto count = arrsize(requests);
@@ -202,4 +203,11 @@ void X5000HWLibs::wrapVWriteMmRegisterUlong(void *cail, uint32_t regIndex, uint3
     }
 
     FunctionCast(wrapVWriteMmRegisterUlong, callback->orgVWriteMmRegisterUlong)(cail, regIndex, regVal);
+}
+AMDReturn X5000HWLibs::wrapHdpHwInit(void *gvm, void *initInfo, uint64_t param3) {
+    DBGLOG("hwlibs", "_hdp_hw_init << (gvm: %p initInfo: %p param3: 0x%llX)", gvm, initInfo, param3);
+    DBGLOG("hwlibs", "HDP IP version is 0x%X", getMember<uint32_t>(getMember<void *>(gvm, 0xca8), 0x8));
+    auto ret = FunctionCast(wrapHdpHwInit, callback->orgHdpHwInit)(gvm, initInfo, param3);
+    DBGLOG("hwlibs", "_hdp_hw_init >> 0x%X", ret);
+    return ret;
 }

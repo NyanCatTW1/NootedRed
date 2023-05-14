@@ -70,6 +70,7 @@ bool X5000::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_t 
             {"__ZN29AMDRadeonX5000_AMDHWVMContext36updateContiguousPTEsWithDMAUsingAddrEyyyyy",
                 wrapUpdateContiguousPTEsWithDMAUsingAddr, orgUpdateContiguousPTEsWithDMAUsingAddr},
             {"__ZN24AMDRadeonX5000_AMDRTRing9writeTailEv", wrapWriteTail, orgWriteTail},
+            {"__ZN33AMDRadeonX5000_AMDGFX9SDMAChannel23writeWritePTEPDECommandEPjyjyyy", wrapWriteWritePTEPDECommand},
         };
         PANIC_COND(!patcher.routeMultiple(index, requests, address, size), "x5000", "Failed to route symbols");
 
@@ -205,7 +206,6 @@ void X5000::wrapUpdateContiguousPTEsWithDMAUsingAddr(void *that, uint64_t pe, ui
         count, addr, flags, incr);
     DBGLOG("x5000", "updateContiguousPTEsWithDMAUsingAddr >> void");
     NRed::sleepLoop("Exiting wrapUpdateContiguousPTEsWithDMAUsingAddr", 200);
-
 }
 
 void X5000::wrapWriteTail(void *that) {
@@ -215,4 +215,21 @@ void X5000::wrapWriteTail(void *that) {
     FunctionCast(wrapWriteTail, callback->orgWriteTail)(that);
     DBGLOG("x5000", "writeTail >> void");
     NRed::sleepLoop("Exiting wrapWriteTail", 5000);
+}
+
+uint32_t X5000::wrapWriteWritePTEPDECommand(void *that, void *buf, uint64_t pe, uint32_t count, uint64_t flags,
+    uint64_t addr, uint64_t incr) {
+    DBGLOG("x5000",
+        "writeWritePTEPDECommand << (that: %p buf: %p pe: 0x%llX count: 0x%X flags: 0x%llX addr: 0x%llX incr: 0x%llX)",
+        that, buf, pe, count, flags, addr, incr);
+    count /= 2;
+    for (uint32_t i = 0; i < count; i++) {
+        uint64_t toWrite = flags | addr;
+        DBGLOG("x5000", "Writing %llX to %p", toWrite, pe);
+        NRed::sleepLoop("Writing", 2000);
+        *(volatile uint64_t *)pe = toWrite;
+        addr += incr;
+        pe += 8;
+    }
+    return 0;
 }

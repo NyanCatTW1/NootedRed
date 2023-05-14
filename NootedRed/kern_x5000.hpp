@@ -45,6 +45,8 @@ class X5000 {
     static void wrapUpdateContiguousPTEsWithDMAUsingAddr(void *that, uint64_t pe, uint64_t count, uint64_t addr,
         uint64_t flags, uint64_t incr);
     static void wrapWriteTail(void *that);
+    static uint32_t wrapWriteWritePTEPDECommand(void *that, void *buf, uint64_t pe, uint32_t count, uint64_t flags,
+        uint64_t addr, uint64_t incr);
 };
 
 #endif /* kern_x5000_hpp */

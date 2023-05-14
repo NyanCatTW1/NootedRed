@@ -306,8 +306,7 @@ void X6000FB::wrapDumpBuffer(void *that, uint32_t logType, uint32_t logSeverity,
     DBGLOG("x6000fb", "dumpBuffer << (that: %p logType: 0x%X logSeverity: 0x%X buf: %p length: 0x%X)", that, logType,
         logSeverity, buf, length);
     NRed::i386_backtrace();
-    NRed::sleepLoop("Calling orgDumpBuffer", 5000);
     FunctionCast(wrapDumpBuffer, callback->orgDumpBuffer)(that, logType, logSeverity, buf, length);
     DBGLOG("x6000fb", "dumpBuffer >> void");
-    NRed::sleepLoop("Exiting wrapDumpBuffer", 5000);
+    NRed::sleepLoop("Exiting wrapDumpBuffer", 60000);
 }

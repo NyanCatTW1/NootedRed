@@ -67,6 +67,9 @@ bool X5000::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_t 
             {"__ZN30AMDRadeonX5000_AMDGFX9Hardware25allocateAMDHWAlignManagerEv", wrapAllocateAMDHWAlignManager,
                 this->orgAllocateAMDHWAlignManager},
             {"__ZN43AMDRadeonX5000_AMDVega10GraphicsAccelerator13getDeviceTypeEP11IOPCIDevice", wrapGetDeviceType},
+            {"__ZN29AMDRadeonX5000_AMDHWVMContext36updateContiguousPTEsWithDMAUsingAddrEyyyyy",
+                wrapUpdateContiguousPTEsWithDMAUsingAddr, orgUpdateContiguousPTEsWithDMAUsingAddr},
+            {"__ZN24AMDRadeonX5000_AMDRTRing9writeTailEv", wrapWriteTail, orgWriteTail},
         };
         PANIC_COND(!patcher.routeMultiple(index, requests, address, size), "x5000", "Failed to route symbols");
 
@@ -190,3 +193,23 @@ void *X5000::wrapAllocateAMDHWAlignManager() {
 }
 
 uint32_t X5000::wrapGetDeviceType() { return NRed::callback->chipType < ChipType::Renoir ? 0 : 9; }
+
+void X5000::wrapUpdateContiguousPTEsWithDMAUsingAddr(void *that, uint64_t pe, uint64_t count, uint64_t addr,
+    uint64_t flags, uint64_t incr) {
+    DBGLOG("x5000",
+        "updateContiguousPTEsWithDMAUsingAddr << (that: %p pe: 0x%llX count: 0x%llX addr: 0x%llX flags: 0x%llX incr: "
+        "0x%llX)",
+        that, pe, count, addr, flags, incr);
+    FunctionCast(wrapUpdateContiguousPTEsWithDMAUsingAddr, callback->orgUpdateContiguousPTEsWithDMAUsingAddr)(that, pe,
+        count, addr, flags, incr);
+    DBGLOG("x5000", "updateContiguousPTEsWithDMAUsingAddr >> void");
+}
+
+void X5000::wrapWriteTail(void *that) {
+    DBGLOG("x5000", "writeTail << (that: %p)", that);
+    NRed::i386_backtrace();
+    NRed::sleepLoop("Calling orgWriteTail", 1000);
+    FunctionCast(wrapWriteTail, callback->orgWriteTail)(that);
+    DBGLOG("x5000", "writeTail >> void");
+    NRed::sleepLoop("Exiting wrapWriteTail", 1000);
+}

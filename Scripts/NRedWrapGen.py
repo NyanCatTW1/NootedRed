@@ -1,4 +1,5 @@
 #!/usr/bin/python3
+import sys
 
 
 def fix_type(type: str) -> str:
@@ -88,6 +89,8 @@ moduleToClass = {
     "x6000fb": "X6000FB",
 }
 
+addSleepLoop = "-s" in sys.argv
+addBacktrace = "-bt" in sys.argv
 module: str = input("Filename without extension: ./NootedRed/kern_")
 assert module in moduleToClass
 className = moduleToClass[module]
@@ -125,6 +128,16 @@ fmt_types: str = " ".join(
 arguments: str = ", ".join(x[1] for x in parameters)
 function += [f"    DBGLOG(\"{module}\", \"{func_ident} << ({fmt_types})\", {arguments});\n"]
 
+if addBacktrace:
+    function += [
+        "    NRed::i386_backtrace();\n"
+    ]
+
+if addSleepLoop:
+    function += [
+        f"    NRed::sleepLoop(\"Calling org{func_ident_pascal}\");\n"
+    ]
+
 if return_type == "void":
     function += [
         f"    FunctionCast(wrap{func_ident_pascal}, callback->org{func_ident_pascal})({arguments});\n",
@@ -134,6 +147,15 @@ else:
     function += [
         f"    auto ret = FunctionCast(wrap{func_ident_pascal}, callback->org{func_ident_pascal})({arguments});\n",
         f"    DBGLOG(\"{module}\", \"{func_ident} >> {get_fmt_type(return_type)}\", ret);\n",
+    ]
+
+if addSleepLoop:
+    function += [
+        f"    NRed::sleepLoop(\"Exiting wrap{func_ident_pascal}\");\n"
+    ]
+
+if return_type != "void":
+    function += [
         "    return ret;\n",
     ]
 
@@ -145,10 +167,10 @@ symbol: str = input("Symbol: ").strip()
 target_line: int = locate_line(
     cpp_lines, "Failed to route symbols")
 
-while not cpp_lines[target_line].endswith("};\n"):
+while "};" not in cpp_lines[target_line]:
     target_line -= 1
 
-indent = cpp_lines[target_line][:-3]
+indent = cpp_lines[target_line].split("};")[0]
 
 if "_smu_9_0_1_full_asic_reset" in cpp_lines[target_line - 1] or "_dm_logger_write" in cpp_lines[target_line - 1]:
     target_line -= 1

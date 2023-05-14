@@ -45,6 +45,7 @@ class X6000FB {
         uintptr_t *value);
     static uint32_t wrapGetNumberOfConnectors(void *that);
     static void wrapDmLoggerWrite([[maybe_unused]] void *dalLogger, uint32_t logType, char *fmt, ...);
+    static uint64_t wrapDisplayControllerInit(void *that, uint32_t param1);
 };
 
 #endif /* kern_x6000fb_hpp */

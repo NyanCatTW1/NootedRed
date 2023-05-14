@@ -24,6 +24,8 @@ class X5000 {
     mach_vm_address_t orgAccelSharedUCStart {0};
     mach_vm_address_t orgAccelSharedUCStop {0};
     mach_vm_address_t orgAllocateAMDHWAlignManager {0};
+    mach_vm_address_t orgUpdateContiguousPTEsWithDMAUsingAddr {0};
+    mach_vm_address_t orgWriteTail {0};
     void *hwAlignMgr {nullptr};
     uint8_t *hwAlignMgrVtX5000 {nullptr};
     uint8_t *hwAlignMgrVtX6000 {nullptr};
@@ -40,6 +42,9 @@ class X5000 {
     static void *wrapNewSharedUserClient();
     static void *wrapAllocateAMDHWAlignManager();
     static uint32_t wrapGetDeviceType();
+    static void wrapUpdateContiguousPTEsWithDMAUsingAddr(void *that, uint64_t pe, uint64_t count, uint64_t addr,
+        uint64_t flags, uint64_t incr);
+    static void wrapWriteTail(void *that);
 };
 
 #endif /* kern_x5000_hpp */

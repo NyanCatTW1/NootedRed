@@ -80,6 +80,7 @@ bool X5000HWLibs::processKext(KernelPatcher &patcher, size_t index, mach_vm_addr
             {"_SmuRenoir_Initialize", wrapSmuRenoirInitialize, this->orgSmuRenoirInitialize},
             {"_psp_cos_wait_for", wrapPspCosWaitFor, orgPspCosWaitFor},
             {"_ttlDevSetAsicResetMode", wrapTtlDevSetAsicResetMode, orgTtlDevSetAsicResetMode},
+            {"_vWriteMmRegisterUlong", wrapVWriteMmRegisterUlong, orgVWriteMmRegisterUlong},
             {"_smu_9_0_1_full_asic_reset", hwLibsNoop},
         };    // NOTE: IF YOU ADD A NEW WRAP, YOU WILL HAVE TO ADD IT BEFORE THE LINE ABOVE
         auto count = arrsize(requests);
@@ -192,4 +193,13 @@ AMDReturn X5000HWLibs::wrapPspCosWaitFor(void *cos, uint64_t param2, uint64_t pa
 void X5000HWLibs::wrapTtlDevSetAsicResetMode(void *ttl, uint32_t mode) {
     DBGLOG("hwlibs", "_ttlDevSetAsicResetMode << (ttl: %p mode: 0x%X)", ttl, mode);
     FunctionCast(wrapTtlDevSetAsicResetMode, callback->orgTtlDevSetAsicResetMode)(ttl, 3);
+}
+
+void X5000HWLibs::wrapVWriteMmRegisterUlong(void *cail, uint32_t regIndex, uint32_t regVal) {
+    if (regIndex == 0x127c) {
+        regVal = 0x2;
+        DBGLOG("hwlibs", "_vWriteMmRegisterUlong: 0x127c overwrite");
+    }
+
+    FunctionCast(wrapVWriteMmRegisterUlong, callback->orgVWriteMmRegisterUlong)(cail, regIndex, regVal);
 }

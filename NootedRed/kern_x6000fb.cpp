@@ -53,6 +53,8 @@ bool X6000FB::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_
                 this->orgFramebufferGetAttribute},
             {"__ZNK22AmdAtomObjectInfo_V1_421getNumberOfConnectorsEv", wrapGetNumberOfConnectors,
                 this->orgGetNumberOfConnectors},
+            {"__ZN29AmdDisplayControllerInit_V2_121displayControllerInitE19AtiAtomDcInitAction",
+                wrapDisplayControllerInit},
             {"_dm_logger_write", wrapDmLoggerWrite},
         };
         auto count = arrsize(requests);
@@ -293,4 +295,9 @@ void X6000FB::wrapDmLoggerWrite([[maybe_unused]] void *dalLogger, uint32_t logTy
     const char *logTypeStr = arrsize(LogTypes) > logType ? LogTypes[logType] : "Info";
     kprintf("[%s] %s", logTypeStr, ns);
     delete[] ns;
+}
+
+uint64_t X6000FB::wrapDisplayControllerInit(void *that, uint32_t param1) {
+    DBGLOG("x6000fb", "displayControllerInit << (that: %p param1: 0x%X)", that, param1);
+    return 0;
 }

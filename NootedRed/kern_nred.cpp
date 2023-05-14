@@ -56,6 +56,206 @@ void NRed::init() {
     x5000.init();
 }
 
+// Start i386_backtrace copypasta
+typedef struct _cframe_t {
+    struct _cframe_t *prev;
+    uintptr_t caller;
+#if PRINT_ARGS_FROM_STACK_FRAME
+    unsigned args[0];
+#endif
+} cframe_t;
+
+struct nlist_64 {
+    union {
+        uint32_t n_strx; /* index into the string table */
+    } n_un;
+    uint8_t n_type;   /* type flag, see below */
+    uint8_t n_sect;   /* section number or NO_SECT */
+    uint16_t n_desc;  /* see <mach-o/stab.h> */
+    uint64_t n_value; /* value of this symbol (or stab offset) */
+};
+
+typedef struct segment_command_64 kernel_segment_command_t;
+typedef struct mach_header_64 kernel_mach_header_t;
+typedef struct nlist_64 kernel_nlist_t;
+
+#define LC_SEGMENT_KERNEL LC_SEGMENT_64
+
+#define N_STAB 0xe0 /* if any of these bits set, a symbolic debugging entry */
+
+typedef struct _loaded_kext_summary {
+    char name[KMOD_MAX_NAME];
+    uuid_t uuid;
+    uint64_t address;
+    uint64_t size;
+    uint64_t version;
+    uint32_t loadTag;
+    uint32_t flags;
+    uint64_t reference_list;
+    uint64_t text_exec_address;
+    size_t text_exec_size;
+} OSKextLoadedKextSummary;
+
+typedef struct _loaded_kext_summary_header {
+    uint32_t version;
+    uint32_t entry_size;
+    uint32_t numSummaries;
+    uint32_t reserved; /* explicit alignment for gdb  */
+    OSKextLoadedKextSummary summaries[0];
+} OSKextLoadedKextSummaryHeader;
+
+static int panic_print_macho_symbol_name(kernel_mach_header_t *mh, vm_address_t search, const char *module_name) {
+    kernel_nlist_t *sym = NULL;
+    struct load_command *cmd;
+    kernel_segment_command_t *orig_ts = NULL, *orig_le = NULL;
+    struct symtab_command *orig_st = NULL;
+    unsigned int i;
+    char *strings, *bestsym = NULL;
+    vm_address_t bestaddr = 0, diff, curdiff;
+
+    /* Assume that if it's loaded and linked into the kernel, it's a valid Mach-O */
+
+    cmd = (struct load_command *)&mh[1];
+    for (i = 0; i < mh->ncmds; i++) {
+        if (cmd->cmd == LC_SEGMENT_KERNEL) {
+            kernel_segment_command_t *orig_sg = (kernel_segment_command_t *)cmd;
+
+            if (strncmp(SEG_TEXT, orig_sg->segname, sizeof(orig_sg->segname)) == 0) {
+                orig_ts = orig_sg;
+            } else if (strncmp(SEG_LINKEDIT, orig_sg->segname, sizeof(orig_sg->segname)) == 0) {
+                orig_le = orig_sg;
+            } else if (strncmp("", orig_sg->segname, sizeof(orig_sg->segname)) == 0) {
+                orig_ts = orig_sg; /* pre-Lion i386 kexts have a single unnamed segment */
+            }
+        } else if (cmd->cmd == LC_SYMTAB) {
+            orig_st = (struct symtab_command *)cmd;
+        }
+
+        cmd = (struct load_command *)((uintptr_t)cmd + cmd->cmdsize);
+    }
+
+    if ((orig_ts == NULL) || (orig_st == NULL) || (orig_le == NULL)) { return 0; }
+
+    if ((search < orig_ts->vmaddr) || (search >= orig_ts->vmaddr + orig_ts->vmsize)) {
+        /* search out of range for this mach header */
+        return 0;
+    }
+
+    sym = (kernel_nlist_t *)(uintptr_t)(orig_le->vmaddr + orig_st->symoff - orig_le->fileoff);
+    strings = (char *)(uintptr_t)(orig_le->vmaddr + orig_st->stroff - orig_le->fileoff);
+    diff = search;
+
+    for (i = 0; i < orig_st->nsyms; i++) {
+        if (sym[i].n_type & N_STAB) { continue; }
+
+        if (sym[i].n_value <= search) {
+            curdiff = search - (vm_address_t)sym[i].n_value;
+            if (curdiff < diff) {
+                diff = curdiff;
+                bestaddr = static_cast<vm_address_t>(sym[i].n_value);
+                bestsym = strings + sym[i].n_un.n_strx;
+            }
+        }
+    }
+
+    if (bestsym != NULL) {
+        if (diff != 0) {
+            lilu_os_log("%s : %s + 0x%lx", module_name, bestsym, (unsigned long)diff);
+        } else {
+            lilu_os_log("%s : %s", module_name, bestsym);
+        }
+        return 1;
+    }
+    return 0;
+}
+
+void NRed::panic_print_kmod_symbol_name(vm_address_t search) {
+    u_int i;
+
+    auto gLoadedKextSummaries = *reinterpret_cast<OSKextLoadedKextSummaryHeader **>(callback->orggLoadedKextSummaries);
+
+    if (gLoadedKextSummaries == NULL) { return; }
+    for (i = 0; i < gLoadedKextSummaries->numSummaries; ++i) {
+        OSKextLoadedKextSummary *summary = gLoadedKextSummaries->summaries + i;
+
+        if ((search >= summary->address) && (search < (summary->address + summary->size))) {
+            kernel_mach_header_t *header = (kernel_mach_header_t *)(uintptr_t)summary->address;
+            if (panic_print_macho_symbol_name(header, search, summary->name) == 0) {
+                lilu_os_log("%s + %llu", summary->name, (unsigned long)search - summary->address);
+            }
+            break;
+        }
+    }
+}
+
+void NRed::panic_print_symbol_name(vm_address_t search) {
+    /* try searching in the kernel */
+    if (panic_print_macho_symbol_name(reinterpret_cast<kernel_mach_header_t *>(callback->_mh_execute_header), search,
+            "mach_kernel") == 0) {
+        /* that failed, now try to search for the right kext */
+        panic_print_kmod_symbol_name(search);
+    }
+}
+
+#define DUMPFRAMES         32
+#define PBT_TIMEOUT_CYCLES (5 * 1000 * 1000 * 1000ULL)
+void NRed::i386_backtrace() {
+#ifdef __x86_64__
+    void *_frame = NULL;
+    __asm__ volatile("movq %%rbp, %0" : "=m"(_frame));
+
+    cframe_t *frame = (cframe_t *)_frame;
+    vm_offset_t raddrs[DUMPFRAMES];
+    int frame_index;
+    boolean_t keepsyms = FALSE;
+
+    PE_parse_boot_argn("keepsyms", &keepsyms, sizeof(keepsyms));
+
+    lilu_os_log("Backtrace (CPU ?), "
+    #if PRINT_ARGS_FROM_STACK_FRAME
+                "Frame : Return Address (4 potential args on stack)\n");
+    #else
+                "Frame : Return Address\n");
+    #endif
+
+    for (frame_index = 0; frame_index < 48; frame_index++) {
+        vm_offset_t curframep = (vm_offset_t)frame;
+
+        if (!curframep) { break; }
+
+        if (curframep & 0x3) {
+            lilu_os_log("Unaligned frame\n");
+            goto invalid;
+        }
+
+        lilu_os_log("%p : 0x%lx ", frame, frame->caller);
+        if (frame_index < DUMPFRAMES) { raddrs[frame_index] = frame->caller; }
+
+        /* Display address-symbol translation only if the "keepsyms"
+         * boot-arg is suppplied, since we unload LINKEDIT otherwise.
+         * This routine is potentially unsafe; also, function
+         * boundary identification is unreliable after a strip -x.
+         */
+        if (keepsyms) { NRed::panic_print_symbol_name((vm_address_t)frame->caller); }
+
+        lilu_os_log("\n");
+
+        frame = frame->prev;
+    }
+
+    if (frame_index >= 48) { lilu_os_log("\tBacktrace continues...\n"); }
+
+    goto out;
+
+invalid:
+    lilu_os_log("Backtrace terminated-invalid frame pointer %p\n", frame);
+out:
+    lilu_os_log("\n");
+#endif
+    return;
+}
+// End i386_backtrace copypasta
+
 void NRed::processPatcher(KernelPatcher &patcher) {
     auto *devInfo = DeviceInfo::create();
     if (devInfo) {
@@ -143,6 +343,9 @@ void NRed::processPatcher(KernelPatcher &patcher) {
         SYSLOG("nred", "Failed to obtain _vinfo");
         patcher.clearError();
     }
+
+    _mh_execute_header = patcher.solveSymbol(KernelPatcher::KernelID, "__mh_execute_header");
+    orggLoadedKextSummaries = patcher.solveSymbol(KernelPatcher::KernelID, "_gLoadedKextSummaries");
 }
 
 OSMetaClassBase *NRed::wrapSafeMetaCast(const OSMetaClassBase *anObject, const OSMetaClass *toMeta) {

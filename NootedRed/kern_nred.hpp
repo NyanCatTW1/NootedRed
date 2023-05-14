@@ -204,6 +204,14 @@ class NRed {
         }
     }
 
+    static void sleepLoop(const char *eventDesc, int32_t msLeft = 0) {
+        while (msLeft > 0) {
+            DBGLOG("nred", "%s in %d ms...", eventDesc, msLeft);
+            IOSleep(200);
+            msLeft -= 200;
+        }
+    }
+
     template<typename T>
     T *getVBIOSDataTable(uint32_t index) {
         auto *vbios = static_cast<const uint8_t *>(this->vbiosData->getBytesNoCopy());
@@ -232,6 +240,12 @@ class NRed {
     bool gotConsoleVinfo {false};
     uint8_t *gIOFBVerboseBootPtr {nullptr};
     mach_vm_address_t orgFramebufferInit {0};
+
+    static void panic_print_symbol_name(vm_address_t search);
+    mach_vm_address_t _mh_execute_header {};
+    static void panic_print_kmod_symbol_name(vm_address_t search);
+    mach_vm_address_t orggLoadedKextSummaries = {};
+    static void i386_backtrace();
 
     static OSMetaClassBase *wrapSafeMetaCast(const OSMetaClassBase *anObject, const OSMetaClass *toMeta);
     static size_t wrapFunctionReturnZero();

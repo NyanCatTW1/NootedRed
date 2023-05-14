@@ -55,6 +55,7 @@ bool X6000FB::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_
                 this->orgGetNumberOfConnectors},
             {"__ZN29AmdDisplayControllerInit_V2_121displayControllerInitE19AtiAtomDcInitAction",
                 wrapDisplayControllerInit},
+            {"__ZNK24AMDRadeonX6000_AmdLogger10dumpBufferE7LogType11LogSeverityPKvm", wrapDumpBuffer, orgDumpBuffer},
             {"_dm_logger_write", wrapDmLoggerWrite},
         };
         auto count = arrsize(requests);
@@ -300,4 +301,13 @@ void X6000FB::wrapDmLoggerWrite([[maybe_unused]] void *dalLogger, uint32_t logTy
 uint64_t X6000FB::wrapDisplayControllerInit(void *that, uint32_t param1) {
     DBGLOG("x6000fb", "displayControllerInit << (that: %p param1: 0x%X)", that, param1);
     return 0;
+}
+void X6000FB::wrapDumpBuffer(void *that, uint32_t logType, uint32_t logSeverity, void *buf, uint32_t length) {
+    DBGLOG("x6000fb", "dumpBuffer << (that: %p logType: 0x%X logSeverity: 0x%X buf: %p length: 0x%X)", that, logType,
+        logSeverity, buf, length);
+    NRed::i386_backtrace();
+    NRed::sleepLoop("Calling orgDumpBuffer", 5000);
+    FunctionCast(wrapDumpBuffer, callback->orgDumpBuffer)(that, logType, logSeverity, buf, length);
+    DBGLOG("x6000fb", "dumpBuffer >> void");
+    NRed::sleepLoop("Exiting wrapDumpBuffer", 5000);
 }

@@ -139,7 +139,7 @@ AMDReturn X5000HWLibs::wrapPspSwInit(uint32_t *inputData, void *outputData) {
     return ret;
 }
 
-uint32_t X5000HWLibs::wrapGcGetHwVersion() { return 0x090400; }
+uint32_t X5000HWLibs::wrapGcGetHwVersion() { return 0x090201; }
 
 void X5000HWLibs::wrapPopulateFirmwareDirectory(void *that) {
     auto *fwDir = getMember<void *>(that, 0xB8) = IOMallocZero(0xD8);

@@ -213,7 +213,10 @@ void X5000::wrapWriteTail(void *that) {
     static uint32_t callId = 1;
     DBGLOG("x5000", "writeTail call %u << (that: %p)", callId, that);
     NRed::i386_backtrace();
-    if (callId++ >= 7) { return; }
+    if (callId++ >= 7) {
+        IOSleep(60000);
+        return;
+    }
     NRed::sleepLoop("Calling orgWriteTail", 1000);
     FunctionCast(wrapWriteTail, callback->orgWriteTail)(that);
 }

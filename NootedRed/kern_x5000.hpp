@@ -27,6 +27,7 @@ class X5000 {
     mach_vm_address_t orgUpdateContiguousPTEsWithDMAUsingAddr {0};
     mach_vm_address_t orgWriteTail {0};
     mach_vm_address_t orgProcessCommandBuffer {0};
+    mach_vm_address_t orgCommitIntoGPUPageTable {0};
     void *hwAlignMgr {nullptr};
     uint8_t *hwAlignMgrVtX5000 {nullptr};
     uint8_t *hwAlignMgrVtX6000 {nullptr};
@@ -49,6 +50,7 @@ class X5000 {
     static uint32_t wrapWriteWritePTEPDECommand(void *that, uint32_t *buf, uint64_t pe, uint32_t count, uint64_t flags,
         uint64_t addr, uint64_t incr);
     static void wrapProcessCommandBuffer(void *that, uint32_t param1, uint32_t param2);
+    static void wrapCommitIntoGPUPageTable(void *that);
 };
 
 #endif /* kern_x5000_hpp */

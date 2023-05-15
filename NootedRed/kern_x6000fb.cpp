@@ -323,11 +323,11 @@ IOReturn X6000FB::wrapVendorDoDeviceAttribute(void *that, uint32_t cmd, void *pa
         "param6: %p)",
         callId, that, cmd, param2, param3, param4, param5, param6);
     NRed::i386_backtrace();
-    if (callId >= 17) { NRed::sleepLoop("Calling orgVendorDoDeviceAttribute", 600); }
+    if (callId >= 88) { NRed::sleepLoop("Calling orgVendorDoDeviceAttribute", 600); }
     auto ret = FunctionCast(wrapVendorDoDeviceAttribute, callback->orgVendorDoDeviceAttribute)(that, cmd, param2,
         param3, param4, param5, param6);
     DBGLOG("x6000fb", "vendor_doDeviceAttribute >> 0x%X", ret);
-    if (callId >= 17) { NRed::sleepLoop("Exiting wrapVendorDoDeviceAttribute", 600); }
+    if (callId >= 88) { NRed::sleepLoop("Exiting wrapVendorDoDeviceAttribute", 600); }
     callId++;
     return ret;
 }

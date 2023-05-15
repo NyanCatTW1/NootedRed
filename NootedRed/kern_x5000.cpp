@@ -212,7 +212,7 @@ void X5000::wrapWriteTail(void *that) {
     FunctionCast(wrapWriteTail, callback->orgWriteTail)(that);
 }
 
-uint32_t X5000::wrapWriteWritePTEPDECommand(void *that, void *buf, uint64_t pe, uint32_t count, uint64_t flags,
+uint32_t X5000::wrapWriteWritePTEPDECommand(void *that, uint32_t *buf, uint64_t pe, uint32_t count, uint64_t flags,
     uint64_t addr, uint64_t incr) {
     DBGLOG("x5000",
         "writeWritePTEPDECommand << (that: %p buf: %p pe: 0x%llX count: 0x%X flags: 0x%llX addr: 0x%llX incr: 0x%llX)",
@@ -220,8 +220,8 @@ uint32_t X5000::wrapWriteWritePTEPDECommand(void *that, void *buf, uint64_t pe, 
 
     count /= 2;
 
-    // pe -= 0xF400000000ULL;
-    // pe += NRed::callback->fbOffset;
+    pe -= 0xF400000000ULL;
+    pe += NRed::callback->fbOffset;
     auto *memDesc =
         IOGeneralMemoryDescriptor::withPhysicalAddress(static_cast<IOPhysicalAddress>(pe), 8 * count, kIODirectionOut);
     auto *map = memDesc->map();
@@ -230,14 +230,18 @@ uint32_t X5000::wrapWriteWritePTEPDECommand(void *that, void *buf, uint64_t pe, 
     for (uint32_t i = 0; i < count; i++) {
         uint64_t toWrite = flags | addr;
         DBGLOG("x5000", "Writing 0x%llX to %p", toWrite, pe);
-        NRed::sleepLoop("Writing", 2000);
+
         *(volatile uint64_t *)pe = toWrite;
         addr += incr;
         pe += 8;
+    }
+    
+    for (uint32_t i = 0; i < 10; i++) {
+        buf[i] = 0; // NOP
     }
 
     map->unmap();
     map->release();
     memDesc->release();
-    return 0;
+    return 10;
 }

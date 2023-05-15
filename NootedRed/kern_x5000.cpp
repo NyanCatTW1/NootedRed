@@ -67,10 +67,10 @@ bool X5000::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_t 
             {"__ZN30AMDRadeonX5000_AMDGFX9Hardware25allocateAMDHWAlignManagerEv", wrapAllocateAMDHWAlignManager,
                 this->orgAllocateAMDHWAlignManager},
             {"__ZN43AMDRadeonX5000_AMDVega10GraphicsAccelerator13getDeviceTypeEP11IOPCIDevice", wrapGetDeviceType},
-            {"__ZN29AMDRadeonX5000_AMDHWVMContext36updateContiguousPTEsWithDMAUsingAddrEyyyyy",
-                wrapUpdateContiguousPTEsWithDMAUsingAddr, orgUpdateContiguousPTEsWithDMAUsingAddr},
+            //{"__ZN29AMDRadeonX5000_AMDHWVMContext36updateContiguousPTEsWithDMAUsingAddrEyyyyy",
+            //    wrapUpdateContiguousPTEsWithDMAUsingAddr, orgUpdateContiguousPTEsWithDMAUsingAddr},
             {"__ZN24AMDRadeonX5000_AMDRTRing9writeTailEv", wrapWriteTail, orgWriteTail},
-            {"__ZN33AMDRadeonX5000_AMDGFX9SDMAChannel23writeWritePTEPDECommandEPjyjyyy", wrapWriteWritePTEPDECommand},
+            //{"__ZN33AMDRadeonX5000_AMDGFX9SDMAChannel23writeWritePTEPDECommandEPjyjyyy", wrapWriteWritePTEPDECommand},
         };
         PANIC_COND(!patcher.routeMultiple(index, requests, address, size), "x5000", "Failed to route symbols");
 
@@ -210,8 +210,12 @@ void X5000::wrapUpdateContiguousPTEsWithDMAUsingAddr(void *that, uint64_t pe, ui
 }
 
 void X5000::wrapWriteTail(void *that) {
-    DBGLOG("x5000", "writeTail << (that: %p)", that);
+    static uint32_t callId = 1
+    DBGLOG("x5000", "writeTail call %u << (that: %p)", callId, that);
     NRed::i386_backtrace();
+    if (callId++ >= 7) {
+        return;
+    }
     NRed::sleepLoop("Calling orgWriteTail", 1000);
     FunctionCast(wrapWriteTail, callback->orgWriteTail)(that);
 }

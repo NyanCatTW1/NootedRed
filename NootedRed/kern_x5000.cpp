@@ -220,8 +220,8 @@ uint32_t X5000::wrapWriteWritePTEPDECommand(void *that, void *buf, uint64_t pe, 
 
     count /= 2;
 
-    pe -= 0xF400000000ULL;
-    pe += NRed::callback->fbOffset;
+    // pe -= 0xF400000000ULL;
+    // pe += NRed::callback->fbOffset;
     auto *memDesc =
         IOGeneralMemoryDescriptor::withPhysicalAddress(static_cast<IOPhysicalAddress>(pe), 8 * count, kIODirectionOut);
     auto *map = memDesc->map();

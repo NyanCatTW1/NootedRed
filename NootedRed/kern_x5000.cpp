@@ -73,8 +73,8 @@ bool X5000::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_t 
             //{"__ZN33AMDRadeonX5000_AMDGFX9SDMAChannel23writeWritePTEPDECommandEPjyjyyy", wrapWriteWritePTEPDECommand},
             {"__ZN35AMDRadeonX5000_AMDAccelCommandQueue20processCommandBufferEjj", wrapProcessCommandBuffer,
                 orgProcessCommandBuffer},
-            {"__ZN32AMDRadeonX5000_AMDAccelMemoryMap22commitIntoGPUPageTableEv", wrapCommitIntoGPUPageTable,
-                orgCommitIntoGPUPageTable},
+            {"__ZN29AMDRadeonX5000_AMDHWVMContext5mapVAEyP13IOAccelMemoryyyN24AMDRadeonX5000_IAMDHWVMM10VmMapFlagsE",
+                wrapMapVA, orgMapVA},
         };
         PANIC_COND(!patcher.routeMultiple(index, requests, address, size), "x5000", "Failed to route symbols");
 
@@ -265,8 +265,11 @@ void X5000::wrapProcessCommandBuffer(void *that, uint32_t param1, uint32_t param
     // DBGLOG("x5000", "processCommandBuffer >> void");
 }
 
-void X5000::wrapCommitIntoGPUPageTable(void *that) {
-    DBGLOG("x5000", "commitIntoGPUPageTable << (that: %p)", that);
-    // FunctionCast(wrapCommitIntoGPUPageTable, callback->orgCommitIntoGPUPageTable)(that);
-    // DBGLOG("x5000", "commitIntoGPUPageTable >> void");
+bool X5000::wrapMapVA(void *that, uint64_t param1, void *accelMemory, uint64_t memOffset, uint64_t param4,
+    uint32_t param5) {
+    DBGLOG("x5000", "mapVA << (that: %p param1: 0x%llX accelMemory: %p memOffset: 0x%llX param4: 0x%llX param5: 0x%X)",
+        that, param1, accelMemory, memOffset, param4, param5);
+    // auto ret = FunctionCast(wrapMapVA, callback->orgMapVA)(that, param1, accelMemory, memOffset, param4, param5);
+    // DBGLOG("x5000", "mapVA >> %d", ret);
+    return true;
 }

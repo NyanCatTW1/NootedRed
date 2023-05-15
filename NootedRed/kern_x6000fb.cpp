@@ -56,8 +56,8 @@ bool X6000FB::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_
             //{"__ZN29AmdDisplayControllerInit_V2_121displayControllerInitE19AtiAtomDcInitAction",
             //    wrapDisplayControllerInit},
             {"__ZNK24AMDRadeonX6000_AmdLogger10dumpBufferE7LogType11LogSeverityPKvm", wrapDumpBuffer, orgDumpBuffer},
-            {"__ZN30AMDRadeonX6000_AmdAgdcServices24vendor_doDeviceAttributeEjPmmS0_S0_P25IOExternalMethodArguments",
-                wrapVendorDoDeviceAttribute, orgVendorDoDeviceAttribute},
+            //{"__ZN30AMDRadeonX6000_AmdAgdcServices24vendor_doDeviceAttributeEjPmmS0_S0_P25IOExternalMethodArguments",
+            //    wrapVendorDoDeviceAttribute, orgVendorDoDeviceAttribute},
             {"_dm_logger_write", wrapDmLoggerWrite},
         };
         auto count = arrsize(requests);

@@ -230,6 +230,7 @@ uint32_t X5000::wrapWriteWritePTEPDECommand(void *that, void *buf, uint64_t pe, 
     for (uint32_t i = 0; i < count; i++) {
         uint64_t toWrite = flags | addr;
         DBGLOG("x5000", "Writing 0x%llX to %p", toWrite, pe);
+        NRed::sleepLoop("Writing", 2000);
         *(volatile uint64_t *)pe = toWrite;
         addr += incr;
         pe += 8;

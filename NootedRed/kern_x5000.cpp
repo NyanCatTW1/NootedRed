@@ -239,9 +239,9 @@ uint32_t X5000::wrapWriteWritePTEPDECommand(void *that, uint32_t *buf, uint64_t 
         addr += incr;
         pe += 8;
     }
-    
+
     for (uint32_t i = 0; i < 10; i++) {
-        buf[i] = 0; // NOP
+        buf[i] = 0;    // NOP
     }
 
     /*map->unmap();

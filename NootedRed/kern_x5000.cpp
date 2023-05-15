@@ -71,6 +71,8 @@ bool X5000::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_t 
             //    wrapUpdateContiguousPTEsWithDMAUsingAddr, orgUpdateContiguousPTEsWithDMAUsingAddr},
             {"__ZN24AMDRadeonX5000_AMDRTRing9writeTailEv", wrapWriteTail, orgWriteTail},
             //{"__ZN33AMDRadeonX5000_AMDGFX9SDMAChannel23writeWritePTEPDECommandEPjyjyyy", wrapWriteWritePTEPDECommand},
+            {"__ZN35AMDRadeonX5000_AMDAccelCommandQueue20processCommandBufferEjj", wrapProcessCommandBuffer,
+                orgProcessCommandBuffer},
         };
         PANIC_COND(!patcher.routeMultiple(index, requests, address, size), "x5000", "Failed to route symbols");
 
@@ -253,4 +255,10 @@ uint32_t X5000::wrapWriteWritePTEPDECommand(void *that, uint32_t *buf, uint64_t 
     map->release();
     memDesc->release();*/
     return 10;
+}
+
+void X5000::wrapProcessCommandBuffer(void *that, uint32_t param1, uint32_t param2) {
+    DBGLOG("x5000", "processCommandBuffer << (that: %p param1: 0x%X param2: 0x%X)", that, param1, param2);
+    // FunctionCast(wrapProcessCommandBuffer, callback->orgProcessCommandBuffer)(that, param1, param2);
+    DBGLOG("x5000", "processCommandBuffer >> void");
 }

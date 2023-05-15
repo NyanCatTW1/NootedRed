@@ -29,6 +29,7 @@ class X6000FB {
     IONotifier *dispNotif {nullptr};
     mach_vm_address_t orgGetNumberOfConnectors {0};
     mach_vm_address_t orgDumpBuffer {0};
+    mach_vm_address_t orgVendorDoDeviceAttribute {0};
 
     static bool OnAppleBacklightDisplayLoad(void *target, void *refCon, IOService *newService, IONotifier *notifier);
     void registerDispMaxBrightnessNotif();
@@ -48,6 +49,8 @@ class X6000FB {
     static void wrapDmLoggerWrite([[maybe_unused]] void *dalLogger, uint32_t logType, char *fmt, ...);
     static uint64_t wrapDisplayControllerInit(void *that, uint32_t param1);
     static void wrapDumpBuffer(void *that, uint32_t logType, uint32_t logSeverity, void *buf, uint32_t length);
+    static IOReturn wrapVendorDoDeviceAttribute(void *that, uint32_t cmd, void *param2, uint64_t param3, void *param4,
+        void *param5, void *param6);
 };
 
 #endif /* kern_x6000fb_hpp */

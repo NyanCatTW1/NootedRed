@@ -31,6 +31,7 @@ class X5000 {
     mach_vm_address_t orgSubmitBuffer {0};
     mach_vm_address_t orgDispPipeWriteDiagnosisReport {0};
     mach_vm_address_t orgWriteASICHangLogInfo {0};
+    mach_vm_address_t orgAMDRadeonX5000KprintfLongString {0};
     void *hwAlignMgr {nullptr};
     uint8_t *hwAlignMgrVtX5000 {nullptr};
     uint8_t *hwAlignMgrVtX6000 {nullptr};
@@ -58,6 +59,7 @@ class X5000 {
     static void wrapSubmitBuffer(void *that, void *cmdDesc);
     static void wrapDispPipeWriteDiagnosisReport(void *that, void *param2, void *param3);
     static uint64_t wrapWriteASICHangLogInfo(void *that, void *param1);
+    static void wrapAMDRadeonX5000KprintfLongString(char *param1);
 };
 
 #endif /* kern_x5000_hpp */

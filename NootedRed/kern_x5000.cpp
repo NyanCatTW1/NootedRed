@@ -81,6 +81,8 @@ bool X5000::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_t 
                 orgDispPipeWriteDiagnosisReport},
             {"__ZN30AMDRadeonX5000_AMDGFX9Hardware20writeASICHangLogInfoEPPv", wrapWriteASICHangLogInfo,
                 orgWriteASICHangLogInfo},
+            {"__Z32AMDRadeonX5000_kprintfLongStringPKc", wrapAMDRadeonX5000KprintfLongString,
+                orgAMDRadeonX5000KprintfLongString},
         };
         PANIC_COND(!patcher.routeMultiple(index, requests, address, size), "x5000", "Failed to route symbols");
 
@@ -287,6 +289,7 @@ void X5000::wrapSubmitBuffer(void *that, void *cmdDesc) {
     uint32_t *&ibPtr = getMember<uint32_t *>(cmdDesc, 0x20);
     uint32_t &ibSize = getMember<uint32_t>(cmdDesc, 0x30);
     if (ibPtr != nullptr) {
+        DBGLOG("x5000", "submitBuffer: IB contains %u dword(s)", ibSize / 4);
         bool emptyIB = true;
         for (uint32_t i = 0; i < ibSize / 4; i++) {
             DBGLOG("x5000", "ibPtr[%u] = 0x%08X", i, ibPtr[i]);
@@ -311,4 +314,13 @@ uint64_t X5000::wrapWriteASICHangLogInfo(void *that, void *param1) {
     // auto ret = FunctionCast(wrapWriteASICHangLogInfo, callback->orgWriteASICHangLogInfo)(that, param1);
     // DBGLOG("x5000", "writeASICHangLogInfo >> 0x%llX", ret);
     return 0;
+}
+
+void X5000::wrapAMDRadeonX5000KprintfLongString(char *param1) {
+    DBGLOG("x5000", "AMDRadeonX5000_kprintfLongString << (param1: %s)", param1);
+    NRed::i386_backtrace();
+    NRed::sleepLoop("Calling orgAMDRadeonX5000KprintfLongString");
+    FunctionCast(wrapAMDRadeonX5000KprintfLongString, callback->orgAMDRadeonX5000KprintfLongString)(param1);
+    DBGLOG("x5000", "AMDRadeonX5000_kprintfLongString >> void");
+    NRed::sleepLoop("Exiting wrapAMDRadeonX5000KprintfLongString", 3000);
 }

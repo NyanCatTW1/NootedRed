@@ -67,14 +67,16 @@ bool X5000::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_t 
             {"__ZN30AMDRadeonX5000_AMDGFX9Hardware25allocateAMDHWAlignManagerEv", wrapAllocateAMDHWAlignManager,
                 this->orgAllocateAMDHWAlignManager},
             {"__ZN43AMDRadeonX5000_AMDVega10GraphicsAccelerator13getDeviceTypeEP11IOPCIDevice", wrapGetDeviceType},
-            //{"__ZN29AMDRadeonX5000_AMDHWVMContext36updateContiguousPTEsWithDMAUsingAddrEyyyyy",
-            //    wrapUpdateContiguousPTEsWithDMAUsingAddr, orgUpdateContiguousPTEsWithDMAUsingAddr},
+            {"__ZN29AMDRadeonX5000_AMDHWVMContext36updateContiguousPTEsWithDMAUsingAddrEyyyyy",
+                wrapUpdateContiguousPTEsWithDMAUsingAddr, orgUpdateContiguousPTEsWithDMAUsingAddr},
             {"__ZN24AMDRadeonX5000_AMDRTRing9writeTailEv", wrapWriteTail, orgWriteTail},
             //{"__ZN33AMDRadeonX5000_AMDGFX9SDMAChannel23writeWritePTEPDECommandEPjyjyyy", wrapWriteWritePTEPDECommand},
-            {"__ZN35AMDRadeonX5000_AMDAccelCommandQueue20processCommandBufferEjj", wrapProcessCommandBuffer,
-                orgProcessCommandBuffer},
+            //{"__ZN35AMDRadeonX5000_AMDAccelCommandQueue20processCommandBufferEjj", wrapProcessCommandBuffer,
+            //    orgProcessCommandBuffer},
             {"__ZN29AMDRadeonX5000_AMDHWVMContext5mapVAEyP13IOAccelMemoryyyN24AMDRadeonX5000_IAMDHWVMM10VmMapFlagsE",
                 wrapMapVA, orgMapVA},
+            {"__ZN33AMDRadeonX5000_AMDGFX9SDMAChannel27commitIndirectCommandBufferEP30AMD_SUBMIT_COMMAND_BUFFER_INFO",
+                wrapSdmaCommitIndirectCommandBuffer, orgSdmaCommitIndirectCommandBuffer},
         };
         PANIC_COND(!patcher.routeMultiple(index, requests, address, size), "x5000", "Failed to route symbols");
 
@@ -209,19 +211,15 @@ void X5000::wrapUpdateContiguousPTEsWithDMAUsingAddr(void *that, uint64_t pe, ui
         "updateContiguousPTEsWithDMAUsingAddr << (that: %p pe: 0x%llX count: 0x%llX addr: 0x%llX flags: 0x%llX incr: "
         "0x%llX)",
         that, pe, count, addr, flags, incr);
-    FunctionCast(wrapUpdateContiguousPTEsWithDMAUsingAddr, callback->orgUpdateContiguousPTEsWithDMAUsingAddr)(that, pe,
-        count, addr, flags, incr);
+    FunctionCast(wrapUpdateContiguousPTEsWithDMAUsingAddr, callback->orgUpdateContiguousPTEsWithDMAUsingAddr)(that,
+        0xF400000000ULL, count, addr, flags, incr);
 }
 
 void X5000::wrapWriteTail(void *that) {
     static uint32_t callId = 1;
     DBGLOG("x5000", "writeTail call %u << (that: %p)", callId, that);
     NRed::i386_backtrace();
-    if (callId++ >= 7) {
-        IOSleep(60000);
-        return;
-    }
-    // NRed::sleepLoop("Calling orgWriteTail", 1000);
+    if (callId++ >= 7) { NRed::sleepLoop("Calling orgWriteTail", 400); }
     FunctionCast(wrapWriteTail, callback->orgWriteTail)(that);
 }
 
@@ -272,4 +270,15 @@ bool X5000::wrapMapVA(void *that, uint64_t param1, void *accelMemory, uint64_t m
     // auto ret = FunctionCast(wrapMapVA, callback->orgMapVA)(that, param1, accelMemory, memOffset, param4, param5);
     // DBGLOG("x5000", "mapVA >> %d", ret);
     return true;
+}
+
+uint32_t X5000::wrapSdmaCommitIndirectCommandBuffer(void *that, void *param1) {
+    DBGLOG("x5000", "sdmaCommitIndirectCommandBuffer << (that: %p param1: %p)", that, param1);
+    uint32_t *ibPtr = getMember<uint32_t *>(param1, 0x48);
+    uint32_t ibSize = getMember<uint32_t>(param1, 0x3c);
+    for (uint32_t i = 0; i < ibSize / 4; i++) { DBGLOG("x5000", "ibPtr[%u] = 0x%08X", i, ibPtr[i]); }
+    auto ret =
+        FunctionCast(wrapSdmaCommitIndirectCommandBuffer, callback->orgSdmaCommitIndirectCommandBuffer)(that, param1);
+    DBGLOG("x5000", "sdmaCommitIndirectCommandBuffer >> 0x%X", ret);
+    return ret;
 }

@@ -28,6 +28,7 @@ class X5000 {
     mach_vm_address_t orgWriteTail {0};
     mach_vm_address_t orgProcessCommandBuffer {0};
     mach_vm_address_t orgMapVA {0};
+    mach_vm_address_t orgSdmaCommitIndirectCommandBuffer {0};
     void *hwAlignMgr {nullptr};
     uint8_t *hwAlignMgrVtX5000 {nullptr};
     uint8_t *hwAlignMgrVtX6000 {nullptr};
@@ -52,6 +53,7 @@ class X5000 {
     static void wrapProcessCommandBuffer(void *that, uint32_t param1, uint32_t param2);
     static bool wrapMapVA(void *that, uint64_t param1, void *accelMemory, uint64_t memOffset, uint64_t param4,
         uint32_t param5);
+    static uint32_t wrapSdmaCommitIndirectCommandBuffer(void *that, void *param1);
 };
 
 #endif /* kern_x5000_hpp */

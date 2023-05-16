@@ -219,7 +219,7 @@ void X5000::wrapWriteTail(void *that) {
     static uint32_t callId = 1;
     DBGLOG("x5000", "writeTail call %u << (that: %p)", callId, that);
     NRed::i386_backtrace();
-    if (callId++ >= 7) { NRed::sleepLoop("Calling orgWriteTail", 400); }
+    if (callId++ >= 6) { NRed::sleepLoop("Calling orgWriteTail", 400); }
     FunctionCast(wrapWriteTail, callback->orgWriteTail)(that);
 }
 
@@ -274,9 +274,9 @@ bool X5000::wrapMapVA(void *that, uint64_t param1, void *accelMemory, uint64_t m
 
 uint32_t X5000::wrapSdmaCommitIndirectCommandBuffer(void *that, void *param1) {
     DBGLOG("x5000", "sdmaCommitIndirectCommandBuffer << (that: %p param1: %p)", that, param1);
-    uint32_t *ibPtr = getMember<uint32_t *>(param1, 0x48);
-    uint32_t ibSize = getMember<uint32_t>(param1, 0x3c);
-    for (uint32_t i = 0; i < ibSize / 4; i++) { DBGLOG("x5000", "ibPtr[%u] = 0x%08X", i, ibPtr[i]); }
+    // uint32_t *ibPtr = getMember<uint32_t *>(param1, 0x48);
+    // uint32_t ibSize = getMember<uint32_t>(param1, 0x3c);
+    // for (uint32_t i = 0; i < ibSize / 4; i++) { DBGLOG("x5000", "ibPtr[%u] = 0x%08X", i, ibPtr[i]); }
     auto ret =
         FunctionCast(wrapSdmaCommitIndirectCommandBuffer, callback->orgSdmaCommitIndirectCommandBuffer)(that, param1);
     DBGLOG("x5000", "sdmaCommitIndirectCommandBuffer >> 0x%X", ret);

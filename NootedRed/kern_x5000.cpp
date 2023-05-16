@@ -221,6 +221,7 @@ void X5000::wrapWriteTail(void *that) {
     NRed::i386_backtrace();
     // if (callId++ >= 7) { NRed::sleepLoop("Calling orgWriteTail", 1000); }
     FunctionCast(wrapWriteTail, callback->orgWriteTail)(that);
+    callId++;
 }
 
 uint32_t X5000::wrapWriteWritePTEPDECommand(void *that, uint32_t *buf, uint64_t pe, uint32_t count, uint64_t flags,

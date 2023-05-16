@@ -77,6 +77,10 @@ bool X5000::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_t 
             //    wrapMapVA, orgMapVA},
             {"__ZN30AMDRadeonX5000_AMDAccelChannel12submitBufferEP24IOAccelCommandDescriptor", wrapSubmitBuffer,
                 orgSubmitBuffer},
+            {"__ZN34AMDRadeonX5000_AMDAccelDisplayPipe20writeDiagnosisReportERPcRj", wrapDispPipeWriteDiagnosisReport,
+                orgDispPipeWriteDiagnosisReport},
+            {"__ZN30AMDRadeonX5000_AMDGFX9Hardware20writeASICHangLogInfoEPPv", wrapWriteASICHangLogInfo,
+                orgWriteASICHangLogInfo},
         };
         PANIC_COND(!patcher.routeMultiple(index, requests, address, size), "x5000", "Failed to route symbols");
 
@@ -294,4 +298,17 @@ void X5000::wrapSubmitBuffer(void *that, void *cmdDesc) {
     FunctionCast(wrapSubmitBuffer, callback->orgSubmitBuffer)(that, cmdDesc);
     DBGLOG("x5000", "submitBuffer >> void");
     callId++;
+}
+
+void X5000::wrapDispPipeWriteDiagnosisReport(void *that, void *param2, void *param3) {
+    DBGLOG("x5000", "dispPipeWriteDiagnosisReport << (that: %p param2: %p param3: %p)", that, param2, param3);
+    // FunctionCast(wrapDispPipeWriteDiagnosisReport, callback->orgDispPipeWriteDiagnosisReport)(that, param2, param3);
+    // DBGLOG("x5000", "dispPipeWriteDiagnosisReport >> void");
+}
+
+uint64_t X5000::wrapWriteASICHangLogInfo(void *that, void *param1) {
+    DBGLOG("x5000", "writeASICHangLogInfo << (that: %p param1: %p)", that, param1);
+    // auto ret = FunctionCast(wrapWriteASICHangLogInfo, callback->orgWriteASICHangLogInfo)(that, param1);
+    // DBGLOG("x5000", "writeASICHangLogInfo >> 0x%llX", ret);
+    return 0;
 }

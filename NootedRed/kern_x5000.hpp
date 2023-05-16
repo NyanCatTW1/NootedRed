@@ -29,6 +29,8 @@ class X5000 {
     mach_vm_address_t orgProcessCommandBuffer {0};
     mach_vm_address_t orgMapVA {0};
     mach_vm_address_t orgSubmitBuffer {0};
+    mach_vm_address_t orgDispPipeWriteDiagnosisReport {0};
+    mach_vm_address_t orgWriteASICHangLogInfo {0};
     void *hwAlignMgr {nullptr};
     uint8_t *hwAlignMgrVtX5000 {nullptr};
     uint8_t *hwAlignMgrVtX6000 {nullptr};
@@ -54,6 +56,8 @@ class X5000 {
     static bool wrapMapVA(void *that, uint64_t param1, void *accelMemory, uint64_t memOffset, uint64_t param4,
         uint32_t param5);
     static void wrapSubmitBuffer(void *that, void *cmdDesc);
+    static void wrapDispPipeWriteDiagnosisReport(void *that, void *param2, void *param3);
+    static uint64_t wrapWriteASICHangLogInfo(void *that, void *param1);
 };
 
 #endif /* kern_x5000_hpp */

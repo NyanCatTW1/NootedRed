@@ -73,8 +73,8 @@ bool X5000::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_t 
             //{"__ZN33AMDRadeonX5000_AMDGFX9SDMAChannel23writeWritePTEPDECommandEPjyjyyy", wrapWriteWritePTEPDECommand},
             //{"__ZN35AMDRadeonX5000_AMDAccelCommandQueue20processCommandBufferEjj", wrapProcessCommandBuffer,
             //    orgProcessCommandBuffer},
-            // {"__ZN29AMDRadeonX5000_AMDHWVMContext5mapVAEyP13IOAccelMemoryyyN24AMDRadeonX5000_IAMDHWVMM10VmMapFlagsE",
-            //    wrapMapVA, orgMapVA},
+            {"__ZN29AMDRadeonX5000_AMDHWVMContext5mapVAEyP13IOAccelMemoryyyN24AMDRadeonX5000_IAMDHWVMM10VmMapFlagsE",
+                wrapMapVA, orgMapVA},
             {"__ZN30AMDRadeonX5000_AMDAccelChannel12submitBufferEP24IOAccelCommandDescriptor", wrapSubmitBuffer,
                 orgSubmitBuffer},
         };
@@ -219,7 +219,7 @@ void X5000::wrapWriteTail(void *that) {
     static uint32_t callId = 1;
     DBGLOG("x5000", "writeTail call %u << (that: %p)", callId, that);
     NRed::i386_backtrace();
-    if (callId++ >= 6) { NRed::sleepLoop("Calling orgWriteTail", 1000); }
+    if (callId++ >= 7) { NRed::sleepLoop("Calling orgWriteTail", 1000); }
     FunctionCast(wrapWriteTail, callback->orgWriteTail)(that);
 }
 
@@ -265,11 +265,15 @@ void X5000::wrapProcessCommandBuffer(void *that, uint32_t param1, uint32_t param
 
 bool X5000::wrapMapVA(void *that, uint64_t param1, void *accelMemory, uint64_t memOffset, uint64_t param4,
     uint32_t param5) {
-    DBGLOG("x5000", "mapVA << (that: %p param1: 0x%llX accelMemory: %p memOffset: 0x%llX param4: 0x%llX param5: 0x%X)",
-        that, param1, accelMemory, memOffset, param4, param5);
-    // auto ret = FunctionCast(wrapMapVA, callback->orgMapVA)(that, param1, accelMemory, memOffset, param4, param5);
-    // DBGLOG("x5000", "mapVA >> %d", ret);
-    return true;
+    static uint32_t callId = 1;
+    DBGLOG("x5000",
+        "mapVA call %u << (that: %p param1: 0x%llX accelMemory: %p memOffset: 0x%llX param4: 0x%llX param5: 0x%X)",
+        callId, that, param1, accelMemory, memOffset, param4, param5);
+    if (callId == 1) { NRed::sleepLoop("Calling orgMapVA", 1000); }
+    auto ret = FunctionCast(wrapMapVA, callback->orgMapVA)(that, param1, accelMemory, memOffset, param4, param5);
+    DBGLOG("x5000", "mapVA >> %d", ret);
+    callId++;
+    return ret;
 }
 
 void X5000::wrapSubmitBuffer(void *that, void *cmdDesc) {

@@ -278,12 +278,18 @@ bool X5000::wrapMapVA(void *that, uint64_t param1, void *accelMemory, uint64_t m
 }
 
 void X5000::wrapSubmitBuffer(void *that, void *cmdDesc) {
-    uint32_t callId = 1;
+    static uint32_t callId = 1;
     DBGLOG("x5000", "submitBuffer call %u << (that: %p cmdDesc: %p)", callId, that, cmdDesc);
     uint32_t *&ibPtr = getMember<uint32_t *>(cmdDesc, 0x20);
     uint32_t &ibSize = getMember<uint32_t>(cmdDesc, 0x30);
     if (ibPtr != nullptr) {
-        for (uint32_t i = 0; i < ibSize / 4; i++) { DBGLOG("x5000", "ibPtr[%u] = 0x%08X", i, ibPtr[i]); }
+        bool emptyIB = true;
+        for (uint32_t i = 0; i < ibSize / 4; i++) {
+            DBGLOG("x5000", "ibPtr[%u] = 0x%08X", i, ibPtr[i]);
+            if (ibPtr[i] != 0) { emptyIB = false; }
+        }
+
+        if (emptyIB) { NRed::i386_backtrace(); }
     }
     FunctionCast(wrapSubmitBuffer, callback->orgSubmitBuffer)(that, cmdDesc);
     DBGLOG("x5000", "submitBuffer >> void");

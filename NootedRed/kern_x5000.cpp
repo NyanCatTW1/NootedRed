@@ -73,8 +73,8 @@ bool X5000::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_t 
             //{"__ZN33AMDRadeonX5000_AMDGFX9SDMAChannel23writeWritePTEPDECommandEPjyjyyy", wrapWriteWritePTEPDECommand},
             //{"__ZN35AMDRadeonX5000_AMDAccelCommandQueue20processCommandBufferEjj", wrapProcessCommandBuffer,
             //    orgProcessCommandBuffer},
-            {"__ZN29AMDRadeonX5000_AMDHWVMContext5mapVAEyP13IOAccelMemoryyyN24AMDRadeonX5000_IAMDHWVMM10VmMapFlagsE",
-                wrapMapVA, orgMapVA},
+            // {"__ZN29AMDRadeonX5000_AMDHWVMContext5mapVAEyP13IOAccelMemoryyyN24AMDRadeonX5000_IAMDHWVMM10VmMapFlagsE",
+            //    wrapMapVA, orgMapVA},
             {"__ZN33AMDRadeonX5000_AMDGFX9SDMAChannel27commitIndirectCommandBufferEP30AMD_SUBMIT_COMMAND_BUFFER_INFO",
                 wrapSdmaCommitIndirectCommandBuffer, orgSdmaCommitIndirectCommandBuffer},
         };

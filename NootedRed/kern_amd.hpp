@@ -6,6 +6,7 @@
 #include <Headers/kern_util.hpp>
 
 using t_GenericConstructor = void (*)(void *that);
+using t_dumpASICHangState = void (*)(void *that, bool param_1);
 
 constexpr uint32_t AMDGPU_FAMILY_RAVEN = 0x8E;
 

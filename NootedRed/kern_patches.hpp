@@ -333,6 +333,11 @@ static const uint8_t kVAAddrLibInterfaceInitPatched[] = {0x74, 0x00, 0x66, 0x90,
 static const uint8_t kVAAddrLibInterfaceInitPatchedMask[] = {0xFF, 0x00, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF,
     0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 
+static const uint8_t kdumpASICHangStateOriginal[] = {0xff, 0x90, 0x18, 0x06, 0x00, 0x00, 0x84, 0xc0, 0x0f, 0x84, 0x1f,
+    0x01, 0x00, 0x00};
+static const uint8_t kdumpASICHangStatePatched[] = {0xff, 0x90, 0x18, 0x06, 0x00, 0x00, 0x84, 0xc0, 0x90, 0x90, 0x90,
+    0x90, 0x90, 0x90};
+
 static_assert(arrsize(kAGDPFBCountCheckOriginal) == arrsize(kAGDPFBCountCheckPatched));
 static_assert(arrsize(kAGDPFBCountCheckVenturaOriginal) == arrsize(kAGDPFBCountCheckVenturaPatched));
 static_assert(arrsize(kAGDPBoardIDKeyOriginal) == arrsize(kAGDPBoardIDKeyPatched));
@@ -377,5 +382,6 @@ static_assert(arrsize(kVAFactoryCreateVPOriginal) == arrsize(kVAFactoryCreateVPM
 static_assert(arrsize(kVAFactoryCreateVPOriginal) > arrsize(kVAFactoryCreateVPPatched));
 static_assert(arrsize(kVAFactoryCreateImageBltOriginal) == arrsize(kVAFactoryCreateImageBltMask));
 static_assert(arrsize(kVAFactoryCreateImageBltOriginal) > arrsize(kVAFactoryCreateImageBltPatched));
+static_assert(arrsize(kdumpASICHangStateOriginal) == arrsize(kdumpASICHangStatePatched));
 
 #endif /* kern_patches_hpp */

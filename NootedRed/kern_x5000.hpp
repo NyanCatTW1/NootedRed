@@ -18,6 +18,7 @@ class X5000 {
     private:
     t_GenericConstructor orgGFX9PM4EngineConstructor {nullptr};
     t_GenericConstructor orgGFX9SDMAEngineConstructor {nullptr};
+    t_dumpASICHangState orgdumpASICHangState {nullptr};
     mach_vm_address_t orgSetupAndInitializeHWCapabilities {0};
     mach_vm_address_t orgGetHWChannel {0};
     mach_vm_address_t orgAdjustVRAMAddress {0};
@@ -32,9 +33,11 @@ class X5000 {
     mach_vm_address_t orgDispPipeWriteDiagnosisReport {0};
     mach_vm_address_t orgWriteASICHangLogInfo {0};
     mach_vm_address_t orgAMDRadeonX5000KprintfLongString {0};
+    mach_vm_address_t orgEventTimeout {0};
     void *hwAlignMgr {nullptr};
     uint8_t *hwAlignMgrVtX5000 {nullptr};
     uint8_t *hwAlignMgrVtX6000 {nullptr};
+    void *amdHW {nullptr};
 
     static bool wrapAllocateHWEngines(void *that);
     static void wrapSetupAndInitializeHWCapabilities(void *that);
@@ -60,6 +63,7 @@ class X5000 {
     static void wrapDispPipeWriteDiagnosisReport(void *that, void *param2, void *param3);
     static uint64_t wrapWriteASICHangLogInfo(void *that, void *param1);
     static void wrapAMDRadeonX5000KprintfLongString(char *param1);
+    static void *wrapEventTimeout(void *that, uint32_t param1);
 };
 
 #endif /* kern_x5000_hpp */

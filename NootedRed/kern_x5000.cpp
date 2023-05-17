@@ -37,6 +37,7 @@ bool X5000::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_t 
             {"__ZN30AMDRadeonX5000_AMDGFX9Hardware32setupAndInitializeHWCapabilitiesEv",
                 this->orgSetupAndInitializeHWCapabilities},
             {"__ZN26AMDRadeonX5000_AMDHardware14startHWEnginesEv", startHWEngines},
+            {"__ZN26AMDRadeonX5000_AMDHardware17dumpASICHangStateEb", this->orgdumpASICHangState},
         };
         PANIC_COND(!patcher.solveMultiple(index, solveRequests, address, size), "x5000", "Failed to resolve symbols");
 
@@ -83,6 +84,7 @@ bool X5000::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_t 
                 orgWriteASICHangLogInfo},
             {"__Z32AMDRadeonX5000_kprintfLongStringPKc", wrapAMDRadeonX5000KprintfLongString,
                 orgAMDRadeonX5000KprintfLongString},
+            {"__ZN35AMDRadeonX5000_AMDAccelEventMachine12eventTimeoutEi", wrapEventTimeout, orgEventTimeout},
         };
         PANIC_COND(!patcher.routeMultiple(index, requests, address, size), "x5000", "Failed to route symbols");
 
@@ -96,6 +98,16 @@ bool X5000::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_t 
         } else {
             orgChannelTypes[12] = 0;
         }
+
+        KernelPatcher::LookupPatch patches[] = {
+            {&kextRadeonX5000, kdumpASICHangStateOriginal, kdumpASICHangStatePatched,
+                arrsize(kdumpASICHangStateOriginal), 1},
+        };
+        for (auto &patch : patches) {
+            patcher.applyLookupPatch(&patch);
+            patcher.clearError();
+        }
+
         MachInfo::setKernelWriting(false, KernelPatcher::kernelWriteLock);
         PANIC_COND(
             !KernelPatcher::findAndReplace(startHWEngines, PAGE_SIZE, kStartHWEnginesOriginal, kStartHWEnginesPatched),
@@ -109,6 +121,7 @@ bool X5000::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_t 
 }
 
 bool X5000::wrapAllocateHWEngines(void *that) {
+    callback->amdHW = that;
     callback->orgGFX9PM4EngineConstructor(getMember<void *>(that, 0x3B8) = IOMallocZero(0x1E8));
     callback->orgGFX9SDMAEngineConstructor(getMember<void *>(that, 0x3C0) = IOMallocZero(0x128));
     X6000::callback->orgVCN2EngineConstructor(getMember<void *>(that, 0x3F8) = IOMallocZero(0x198));
@@ -224,6 +237,11 @@ void X5000::wrapUpdateContiguousPTEsWithDMAUsingAddr(void *that, uint64_t pe, ui
 void X5000::wrapWriteTail(void *that) {
     static uint32_t callId = 1;
     DBGLOG("x5000", "writeTail call %u << (that: %p)", callId, that);
+
+    uint32_t rptr = getMember<uint32_t>(that, 0x50);
+    uint32_t wptr = getMember<uint32_t>(that, 0x58) * 4;
+    DBGLOG("x5000", "RPTR (cached) = %08X, WPTR = %08X (TS %08X)", rptr, wptr, wptr / 0x80);
+
     NRed::i386_backtrace();
     if (callId >= 6 && callId <= 7) { NRed::sleepLoop("Calling orgWriteTail", 600); }
 
@@ -292,13 +310,13 @@ void X5000::wrapSubmitBuffer(void *that, void *cmdDesc) {
     uint32_t &ibSize = getMember<uint32_t>(cmdDesc, 0x30);
     if (ibPtr != nullptr) {
         DBGLOG("x5000", "submitBuffer: IB contains %u dword(s)", ibSize);
-        // bool emptyIB = true;
+        bool emptyIB = true;
         for (uint32_t i = 0; i < ibSize; i++) {
             DBGLOG("x5000", "ibPtr[%u] = 0x%08X", i, ibPtr[i]);
-            // if (ibPtr[i] != 0) { emptyIB = false; }
+            if (ibPtr[i] != 0) { emptyIB = false; }
         }
 
-        // if (emptyIB) { NRed::i386_backtrace(); }
+        if (emptyIB) { DBGLOG("x5000", "submitBuffer Warning: Empty IB"); }
     }
     FunctionCast(wrapSubmitBuffer, callback->orgSubmitBuffer)(that, cmdDesc);
     DBGLOG("x5000", "submitBuffer >> void");
@@ -325,4 +343,12 @@ void X5000::wrapAMDRadeonX5000KprintfLongString(char *param1) {
     FunctionCast(wrapAMDRadeonX5000KprintfLongString, callback->orgAMDRadeonX5000KprintfLongString)(param1);
     DBGLOG("x5000", "AMDRadeonX5000_kprintfLongString >> void");
     NRed::sleepLoop("Exiting wrapAMDRadeonX5000KprintfLongString", 3000);
+}
+
+void *X5000::wrapEventTimeout(void *that, uint32_t param1) {
+    if (param1 == 15) { callback->orgdumpASICHangState(callback->amdHW, false); }
+    DBGLOG("x5000", "eventTimeout << (that: %p param1: 0x%X)", that, param1);
+    auto ret = FunctionCast(wrapEventTimeout, callback->orgEventTimeout)(that, param1);
+    DBGLOG("x5000", "eventTimeout >> %p", ret);
+    return ret;
 }

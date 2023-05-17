@@ -99,14 +99,14 @@ bool X5000::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_t 
             orgChannelTypes[12] = 0;
         }
 
-        KernelPatcher::LookupPatch patches[] = {
+        /*KernelPatcher::LookupPatch patches[] = {
             {&kextRadeonX5000, kdumpASICHangStateOriginal, kdumpASICHangStatePatched,
                 arrsize(kdumpASICHangStateOriginal), 1},
         };
         for (auto &patch : patches) {
             patcher.applyLookupPatch(&patch);
             patcher.clearError();
-        }
+        }*/
 
         MachInfo::setKernelWriting(false, KernelPatcher::kernelWriteLock);
         PANIC_COND(

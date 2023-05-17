@@ -239,8 +239,8 @@ void X5000::wrapWriteTail(void *that) {
     DBGLOG("x5000", "writeTail call %u << (that: %p)", callId, that);
 
     uint32_t rptr = getMember<uint32_t>(that, 0x50);
-    uint32_t wptr = getMember<uint32_t>(that, 0x58) * 4;
-    DBGLOG("x5000", "RPTR (cached) = %08X, WPTR = %08X (TS %08X)", rptr, wptr, wptr / 0x80);
+    uint32_t wptr = getMember<uint32_t>(that, 0x58);
+    DBGLOG("x5000", "RPTR (cached) = 0x%08X, WPTR = 0x%08X (TS 0x%08X)", rptr, wptr, wptr / 0x80);
 
     NRed::i386_backtrace();
     if (callId >= 6 && callId <= 7) { NRed::sleepLoop("Calling orgWriteTail", 600); }

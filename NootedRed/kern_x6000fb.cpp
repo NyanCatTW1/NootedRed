@@ -56,8 +56,8 @@ bool X6000FB::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_
             //{"__ZN29AmdDisplayControllerInit_V2_121displayControllerInitE19AtiAtomDcInitAction",
             //    wrapDisplayControllerInit},
             {"__ZNK24AMDRadeonX6000_AmdLogger10dumpBufferE7LogType11LogSeverityPKvm", wrapDumpBuffer, orgDumpBuffer},
-            //{"__ZN30AMDRadeonX6000_AmdAgdcServices24vendor_doDeviceAttributeEjPmmS0_S0_P25IOExternalMethodArguments",
-            //    wrapVendorDoDeviceAttribute, orgVendorDoDeviceAttribute},
+            {"__ZN30AMDRadeonX6000_AmdAgdcServices24vendor_doDeviceAttributeEjPmmS0_S0_P25IOExternalMethodArguments",
+                wrapVendorDoDeviceAttribute, orgVendorDoDeviceAttribute},
             {"_dm_logger_write", wrapDmLoggerWrite},
         };
         auto count = arrsize(requests);
@@ -315,7 +315,25 @@ void X6000FB::wrapDumpBuffer(void *that, uint32_t logType, uint32_t logSeverity,
     // NRed::sleepLoop("Exiting wrapDumpBuffer", 600);
 }
 
+
 IOReturn X6000FB::wrapVendorDoDeviceAttribute(void *that, uint32_t cmd, void *param2, uint64_t param3, void *param4,
+    void *param5, void *param6) {
+    static uint32_t callId = 1;
+    DBGLOG("x6000fb",
+        "vendor_doDeviceAttribute call %u << (that: %p cmd: 0x%X param2: %p param3: 0x%llX param4: %p param5: %p "
+        "param6: %p)",
+        callId, that, cmd, param2, param3, param4, param5, param6);
+    NRed::i386_backtrace();
+    if (cmd == 0x1301) { NRed::sleepLoop("Calling orgVendorDoDeviceAttribute", 6000); }
+    auto ret = FunctionCast(wrapVendorDoDeviceAttribute, callback->orgVendorDoDeviceAttribute)(that, cmd, param2,
+        param3, param4, param5, param6);
+    DBGLOG("x6000fb", "vendor_doDeviceAttribute >> 0x%X", ret);
+    if (cmd == 0x1301) { NRed::sleepLoop("Exiting wrapVendorDoDeviceAttribute", 6000); }
+    callId++;
+    return ret;
+}
+
+/*IOReturn X6000FB::wrapVendorDoDeviceAttribute(void *that, uint32_t cmd, void *param2, uint64_t param3, void *param4,
     void *param5, void *param6) {
     static uint32_t callId = 1;
     DBGLOG("x6000fb",
@@ -330,4 +348,4 @@ IOReturn X6000FB::wrapVendorDoDeviceAttribute(void *that, uint32_t cmd, void *pa
     if (callId >= 88) { NRed::sleepLoop("Exiting wrapVendorDoDeviceAttribute", 600); }
     callId++;
     return ret;
-}
+}*/

@@ -485,7 +485,9 @@ void NRed::setRMMIOIfNecessary() {
         PANIC_COND(UNLIKELY(!this->rmmio || !this->rmmio->getLength()), "nred", "Failed to map RMMIO");
         this->rmmioPtr = reinterpret_cast<uint32_t *>(this->rmmio->getVirtualAddress());
 
-        this->fbOffset = static_cast<uint64_t>(this->readReg32(0x296B)) << 24;
+        this->vramStart = static_cast<uint64_t>(this->readReg32(0x2980)) << 24;    // mmMC_VM_FB_LOCATION_BASE
+        this->vramEnd = static_cast<uint64_t>(this->readReg32(0x2981)) << 24;      // mmMC_VM_FB_LOCATION_TOP
+        this->fbOffset = static_cast<uint64_t>(this->readReg32(0x296B)) << 24;     // mmMC_VM_FB_OFFSET
         this->revision = (this->readReg32(0xD2F) & 0xF000000) >> 0x18;
         switch (this->deviceId) {
             case 0x15D8:

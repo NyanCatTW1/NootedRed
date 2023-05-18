@@ -25,10 +25,7 @@ class X5000 {
     mach_vm_address_t orgAccelSharedUCStart {0};
     mach_vm_address_t orgAccelSharedUCStop {0};
     mach_vm_address_t orgAllocateAMDHWAlignManager {0};
-    mach_vm_address_t orgUpdateContiguousPTEsWithDMAUsingAddr {0};
     mach_vm_address_t orgWriteTail {0};
-    mach_vm_address_t orgProcessCommandBuffer {0};
-    mach_vm_address_t orgMapVA {0};
     mach_vm_address_t orgSubmitBuffer {0};
     mach_vm_address_t orgDispPipeWriteDiagnosisReport {0};
     mach_vm_address_t orgWriteASICHangLogInfo {0};
@@ -51,14 +48,7 @@ class X5000 {
     static void *wrapNewSharedUserClient();
     static void *wrapAllocateAMDHWAlignManager();
     static uint32_t wrapGetDeviceType();
-    static void wrapUpdateContiguousPTEsWithDMAUsingAddr(void *that, uint64_t pe, uint64_t count, uint64_t addr,
-        uint64_t flags, uint64_t incr);
     static void wrapWriteTail(void *that);
-    static uint32_t wrapWriteWritePTEPDECommand(void *that, uint32_t *buf, uint64_t pe, uint32_t count, uint64_t flags,
-        uint64_t addr, uint64_t incr);
-    static void wrapProcessCommandBuffer(void *that, uint32_t param1, uint32_t param2);
-    static bool wrapMapVA(void *that, uint64_t param1, void *accelMemory, uint64_t memOffset, uint64_t param4,
-        uint32_t param5);
     static void wrapSubmitBuffer(void *that, void *cmdDesc);
     static void wrapDispPipeWriteDiagnosisReport(void *that, void *param2, void *param3);
     static uint64_t wrapWriteASICHangLogInfo(void *that, void *param1);

@@ -68,14 +68,7 @@ bool X5000::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_t 
             {"__ZN30AMDRadeonX5000_AMDGFX9Hardware25allocateAMDHWAlignManagerEv", wrapAllocateAMDHWAlignManager,
                 this->orgAllocateAMDHWAlignManager},
             {"__ZN43AMDRadeonX5000_AMDVega10GraphicsAccelerator13getDeviceTypeEP11IOPCIDevice", wrapGetDeviceType},
-            //{"__ZN29AMDRadeonX5000_AMDHWVMContext36updateContiguousPTEsWithDMAUsingAddrEyyyyy",
-            //    wrapUpdateContiguousPTEsWithDMAUsingAddr, orgUpdateContiguousPTEsWithDMAUsingAddr},
             {"__ZN24AMDRadeonX5000_AMDRTRing9writeTailEv", wrapWriteTail, orgWriteTail},
-            //{"__ZN33AMDRadeonX5000_AMDGFX9SDMAChannel23writeWritePTEPDECommandEPjyjyyy", wrapWriteWritePTEPDECommand},
-            //{"__ZN35AMDRadeonX5000_AMDAccelCommandQueue20processCommandBufferEjj", wrapProcessCommandBuffer,
-            //    orgProcessCommandBuffer},
-            //{"__ZN29AMDRadeonX5000_AMDHWVMContext5mapVAEyP13IOAccelMemoryyyN24AMDRadeonX5000_IAMDHWVMM10VmMapFlagsE",
-            //    wrapMapVA, orgMapVA},
             {"__ZN30AMDRadeonX5000_AMDAccelChannel12submitBufferEP24IOAccelCommandDescriptor", wrapSubmitBuffer,
                 orgSubmitBuffer},
             {"__ZN34AMDRadeonX5000_AMDAccelDisplayPipe20writeDiagnosisReportERPcRj", wrapDispPipeWriteDiagnosisReport,
@@ -224,16 +217,6 @@ void *X5000::wrapAllocateAMDHWAlignManager() {
 
 uint32_t X5000::wrapGetDeviceType() { return NRed::callback->chipType < ChipType::Renoir ? 0 : 9; }
 
-void X5000::wrapUpdateContiguousPTEsWithDMAUsingAddr(void *that, uint64_t pe, uint64_t count, uint64_t addr,
-    uint64_t flags, uint64_t incr) {
-    DBGLOG("x5000",
-        "updateContiguousPTEsWithDMAUsingAddr << (that: %p pe: 0x%llX count: 0x%llX addr: 0x%llX flags: 0x%llX incr: "
-        "0x%llX)",
-        that, pe, count, addr, flags, incr);
-    FunctionCast(wrapUpdateContiguousPTEsWithDMAUsingAddr, callback->orgUpdateContiguousPTEsWithDMAUsingAddr)(that,
-        0xF400000000ULL, count, addr, flags, incr);
-}
-
 void X5000::wrapWriteTail(void *that) {
     static uint32_t callId = 1;
     DBGLOG("x5000", "writeTail call %u << (that: %p)", callId, that);
@@ -249,20 +232,14 @@ void X5000::wrapWriteTail(void *that) {
     callId++;
 }
 
-uint32_t X5000::wrapWriteWritePTEPDECommand(void *that, uint32_t *buf, uint64_t pe, uint32_t count, uint64_t flags,
-    uint64_t addr, uint64_t incr) {
-    DBGLOG("x5000",
-        "writeWritePTEPDECommand << (that: %p buf: %p pe: 0x%llX count: 0x%X flags: 0x%llX addr: 0x%llX incr: 0x%llX)",
-        that, buf, pe, count, flags, addr, incr);
-
-    count /= 2;
-
+void X5000::executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize) {
+    /*
     pe -= 0xF400000000ULL;
     pe += NRed::callback->fbOffset;
-    /*auto *memDesc =
+    auto *memDesc =
         IOGeneralMemoryDescriptor::withPhysicalAddress(static_cast<IOPhysicalAddress>(pe), 8 * count, kIODirectionOut);
     auto *map = memDesc->map();
-    pe = map->getVirtualAddress();*/
+    pe = map->getVirtualAddress();
 
     for (uint32_t i = 0; i < count; i++) {
         uint64_t toWrite = flags | addr;
@@ -280,30 +257,7 @@ uint32_t X5000::wrapWriteWritePTEPDECommand(void *that, uint32_t *buf, uint64_t 
     /*map->unmap();
     map->release();
     memDesc->release();*/
-    return 10;
-}
-
-void X5000::wrapProcessCommandBuffer(void *that, uint32_t param1, uint32_t param2) {
-    DBGLOG("x5000", "processCommandBuffer << (that: %p param1: 0x%X param2: 0x%X)", that, param1, param2);
-    // FunctionCast(wrapProcessCommandBuffer, callback->orgProcessCommandBuffer)(that, param1, param2);
-    // DBGLOG("x5000", "processCommandBuffer >> void");
-}
-
-bool X5000::wrapMapVA(void *that, uint64_t param1, void *accelMemory, uint64_t memOffset, uint64_t param4,
-    uint32_t param5) {
-    static uint32_t callId = 1;
-    DBGLOG("x5000",
-        "mapVA call %u << (that: %p param1: 0x%llX accelMemory: %p memOffset: 0x%llX param4: 0x%llX param5: 0x%X)",
-        callId, that, param1, accelMemory, memOffset, param4, param5);
-    if (callId == 1) { NRed::sleepLoop("Calling orgMapVA", 1000); }
-    auto ret = FunctionCast(wrapMapVA, callback->orgMapVA)(that, param1, accelMemory, memOffset, param4, param5);
-    DBGLOG("x5000", "mapVA >> %d", ret);
-    callId++;
-    return ret;
-}
-
-void X5000::executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize) {
-    
+    */
 }
 
 void X5000::wrapSubmitBuffer(void *that, void *cmdDesc) {
@@ -314,25 +268,14 @@ void X5000::wrapSubmitBuffer(void *that, void *cmdDesc) {
     auto ibSize = getMember<uint32_t>(cmdDesc, 0x30);
     if (ibPtr != nullptr) {
         auto name = getMember<const char *>(that, 0x340);
-        
         DBGLOG("x5000", "submitBuffer: %s IB contains %u dword(s)", name, ibSize);
-
         for (uint32_t i = 0; i < ibSize; i++) {
             DBGLOG("x5000", "ibPtr[%u] = 0x%08X", i, ibPtr[]);
-
         }
 
         if ((!strncmp(name, "SDMA", 4)) || (!strncmp(name, "VMPT", 4)) {
             executeSDMAIB(ibPtr, ibSize);
-
-
-
-
-
-
          }
-            
-
 
     FunctionCast(wrapSubmitBuffer, callback->orgSubmitBuffer)(that, cmdDesc);
     DBGLOG("x5000", "submitBuffer >> void");

@@ -20,7 +20,6 @@ class X6000FB {
     mach_vm_address_t orgHwReadReg32 {0};
     mach_vm_address_t orgInitWithPciInfo {0};
     t_DceDriverSetBacklight orgDceDriverSetBacklight {nullptr};
-    mach_vm_address_t orgDcePanelCntlHwInit {0};
     mach_vm_address_t orgFramebufferSetAttribute {0};
     mach_vm_address_t orgFramebufferGetAttribute {0};
     uint32_t curPwmBacklightLvl {0};
@@ -47,7 +46,6 @@ class X6000FB {
         uintptr_t *value);
     static uint32_t wrapGetNumberOfConnectors(void *that);
     static void wrapDmLoggerWrite([[maybe_unused]] void *dalLogger, uint32_t logType, char *fmt, ...);
-    static uint64_t wrapDisplayControllerInit(void *that, uint32_t param1);
     static void wrapDumpBuffer(void *that, uint32_t logType, uint32_t logSeverity, void *buf, uint32_t length);
     static IOReturn wrapVendorDoDeviceAttribute(void *that, uint32_t cmd, void *param2, uint64_t param3, void *param4,
         void *param5, void *param6);

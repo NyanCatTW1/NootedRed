@@ -54,6 +54,10 @@ class X5000 {
     static uint64_t wrapWriteASICHangLogInfo(void *that, void *param1);
     static void wrapAMDRadeonX5000KprintfLongString(char *param1);
     static void *wrapEventTimeout(void *that, uint32_t param1);
+    static uint64_t vramToFbOffset(uint64_t addr);
+    static void executeSDMAFillBuffer(uint64_t srcData, uint64_t dstOffset, uint32_t byteCount);
+    static void executeSDMAPTEPDE(uint64_t pe, uint64_t addr, uint32_t count, uint32_t incr, uint64_t flags);
+    static void executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize);
 };
 
 #endif /* kern_x5000_hpp */

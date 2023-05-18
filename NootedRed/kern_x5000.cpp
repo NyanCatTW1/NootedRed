@@ -243,7 +243,7 @@ void X5000::wrapWriteTail(void *that) {
     DBGLOG("x5000", "RPTR (cached) = 0x%08X, WPTR = 0x%08X (TS 0x%08X)", rptr, wptr, wptr / 0x80);
 
     NRed::i386_backtrace();
-    if (callId >= 6 && callId <= 7) { NRed::sleepLoop("Calling orgWriteTail", 600); }
+    // if (callId >= 6 && callId <= 7) { NRed::sleepLoop("Calling orgWriteTail", 600); }
 
     FunctionCast(wrapWriteTail, callback->orgWriteTail)(that);
     callId++;
@@ -302,22 +302,38 @@ bool X5000::wrapMapVA(void *that, uint64_t param1, void *accelMemory, uint64_t m
     return ret;
 }
 
+void X5000::executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize) {
+    
+}
+
 void X5000::wrapSubmitBuffer(void *that, void *cmdDesc) {
     static uint32_t callId = 1;
     DBGLOG("x5000", "submitBuffer call %u << (that: %p cmdDesc: %p)", callId, that, cmdDesc);
     NRed::i386_backtrace();
-    uint32_t *&ibPtr = getMember<uint32_t *>(cmdDesc, 0x20);
-    uint32_t &ibSize = getMember<uint32_t>(cmdDesc, 0x30);
+    auto ibPtr = getMember<uint32_t *>(cmdDesc, 0x20);
+    auto ibSize = getMember<uint32_t>(cmdDesc, 0x30);
     if (ibPtr != nullptr) {
-        DBGLOG("x5000", "submitBuffer: IB contains %u dword(s)", ibSize);
-        bool emptyIB = true;
+        auto name = getMember<const char *>(that, 0x340);
+        
+        DBGLOG("x5000", "submitBuffer: %s IB contains %u dword(s)", name, ibSize);
+
         for (uint32_t i = 0; i < ibSize; i++) {
-            DBGLOG("x5000", "ibPtr[%u] = 0x%08X", i, ibPtr[i]);
-            if (ibPtr[i] != 0) { emptyIB = false; }
+            DBGLOG("x5000", "ibPtr[%u] = 0x%08X", i, ibPtr[]);
+
         }
 
-        if (emptyIB) { DBGLOG("x5000", "submitBuffer Warning: Empty IB"); }
-    }
+        if ((!strncmp(name, "SDMA", 4)) || (!strncmp(name, "VMPT", 4)) {
+            executeSDMAIB(ibPtr, ibSize);
+
+
+
+
+
+
+         }
+            
+
+
     FunctionCast(wrapSubmitBuffer, callback->orgSubmitBuffer)(that, cmdDesc);
     DBGLOG("x5000", "submitBuffer >> void");
     callId++;

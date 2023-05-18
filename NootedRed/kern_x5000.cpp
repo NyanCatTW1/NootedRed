@@ -220,11 +220,12 @@ void X5000::wrapWriteTail(void *that) {
     DBGLOG("x5000", "writeTail call %u << (that: %p)", callId, that);
     callId++;
 
-    auto ring = getMembet<uint32_t *>(that 0,40);
+    auto ring = getMembet<uint32_t *>(that 0, 40);
     auto engineType = getMember<uint32_t>(that, 0x7c);
     auto rptr = getMember<uint16_t>(that, 0x50);
     auto wptr = getMember<uint16_t>(that, 0x58);
-    DBGLOG("x5000", "Engine type %u, RPTR (cached) = 0x%08X, WPTR = 0x%08X (TS 0x%08X)", engineType, rptr, wptr, wptr / 0x80);
+    DBGLOG("x5000", "Engine type %u, RPTR (cached) = 0x%08X, WPTR = 0x%08X (TS 0x%08X)", engineType, rptr, wptr,
+        wptr / 0x80);
     NRed::i386_backtrace();
 
     if (engineType == 1 || engineType == 2) {
@@ -240,9 +241,7 @@ void X5000::wrapWriteTail(void *that) {
             auto ibPtr = (static_cast<uint64_t>(ibPtr[tsOffset + i + 2]) << 32) + ibPtr[tsOffset + i + 1];
             auto ibSize = ibPtr[tsOffset + i + 3];
             DBGLOG("x5000", "writeTail: IB at %p with VMID %u contains %u dword(s)", ibPtr, vmid, ibSize);
-            for (uint32_t i = 0; i < ibSize; i++) {
-                DBGLOG("x5000", "ibPtr[%u] = 0x%08X", i, ibPtr[]);
-            }
+            for (uint32_t i = 0; i < ibSize; i++) { DBGLOG("x5000", "ibPtr[%u] = 0x%08X", i, ibPtr[]); }
 
             executeSDMAIB(ibPtr, ibSize);
         }
@@ -253,14 +252,36 @@ void X5000::wrapWriteTail(void *that) {
 }
 
 uint64_t X5000::vramToFbOffset(uint64_t addr) {
-    addr -= 0xF400000000ULL;
+    addr -= NRed::callback->vramStart;
     addr += NRed::callback->fbOffset;
     return addr;
 }
 
-void X5000::executeSDMAFillBuffer(uint64_t srcData, uint64_t dstOffset, uint32_t byteCount) {
-    if (dstOffset >= 0xF400000000ULL) {
+void X5000::executeSDMAFillBuffer(uint32_t srcData, uint64_t dstOffset, uint32_t byteCount) {
+    bool isVA = true;
+    if (NRed::callback->vramStart <= dstOffset && dstOffset < NRed::callback->vramEnd) {
+        dstOffset = vramToFbOffset(dstOffset);
+        isVA = false;
+    }
 
+    while (byteCount != 0) {
+        uint32_t toWrite = min(byteCount, 0x1000);
+        uint64_t dst = dstOffset;
+        dstOffset += toWrite;
+        byteCount -= toWrite;
+
+        while (toWrite >= 4) {
+            *reinterpret_cast<uint32_t *>(dst) = srcData;
+            toWrite -= 4;
+            dst += 4;
+        }
+
+        if (toWrite >= 2) {
+            *reinterpret_cast<uint16_t *>(dst) = srcData & 0x0000FFFF;
+            if (toWrite == 3) { *reinterpret_cast<uint8_t *>(dst + 2) = (srcData & 0x00FF0000) >> 0x10; }
+        } else if (toWrite == 1) {
+            *reinterpret_cast<uint8_t *>(dst) = srcData & 0x000000FF;
+        }
     }
 }
 
@@ -290,25 +311,25 @@ void X5000::executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize) {
     while (i < ibSize) {
         uint32_t dws = 0;
         switch (ibPtr[i] & 0x000000FF) {
-            case 0x00: // NOP
+            case 0x00:    // NOP
                 dws = 1;
                 break;
-            case 0x0B: // sdma_v4_0_emit_fill_buffer
+            case 0x0B:    // sdma_v4_0_emit_fill_buffer
                 dws = 5;
                 uint64_t dstOffset = (static_cast<uint64_t>(ibPtr[i + 2]) << 32) + ibPtr[i + 1];
                 uint32_t srcData = ibPtr[i + 3];
                 uint32_t byteCount = ibPtr[i + 4] + 1;
                 executeSDMAFillBuffer(srcData, dstOffset, byteCount);
                 break;
-            case 0x0C: // sdma_v4_0_vm_set_pte_pde
+            case 0x0C:    // sdma_v4_0_vm_set_pte_pde
                 dws = 10;
                 uint64_t pe = (static_cast<uint64_t>(ibPtr[i + 2]) << 32) + ibPtr[i + 1];
                 uint64_t flags = (static_cast<uint64_t>(ibPtr[i + 4]) << 32) + ibPtr[i + 3];
                 uint64_t addr = (static_cast<uint64_t>(ibPtr[i + 6]) << 32) + ibPtr[i + 5];
                 uint32_t incr = ibPtr[i + 7];
                 uint32_t count = ibPtr[i + 9] + 1;
-                executeSDMAPTEPDE(pe, addr, count, incr, flags)
-                break!
+                executeSDMAPTEPDE(pe, addr, count, incr, flags);
+                break;
             default:
                 SYSLOG("x5000", "executeSDMAIB: Unknown opcode: 0x%08X", ibPtr[i]);
                 return;
@@ -320,7 +341,6 @@ void X5000::executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize) {
         }
     }
 }
-
 void X5000::wrapDispPipeWriteDiagnosisReport(void *that, void *param2, void *param3) {
     DBGLOG("x5000", "dispPipeWriteDiagnosisReport << (that: %p param2: %p param3: %p)", that, param2, param3);
     // FunctionCast(wrapDispPipeWriteDiagnosisReport, callback->orgDispPipeWriteDiagnosisReport)(that, param2, param3);

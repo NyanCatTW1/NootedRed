@@ -238,7 +238,7 @@ void X5000::wrapWriteTail(void *that) {
         for (uint16_t i = 0; i < 0x80; i++) { DBGLOG("x5000", "ring[%u] = 0x%X", i, ring[tsOffset + i]); }
 
         for (uint16_t i = 10; i < 0x80; i += 8) {
-            if (ring[tsOffset + i] % 0xFF != 4) {
+            if (ring[tsOffset + i] & 0xFF != 4) {
                 // No IB left
                 break;
             }

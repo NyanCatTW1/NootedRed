@@ -486,8 +486,10 @@ void NRed::setRMMIOIfNecessary() {
         this->rmmioPtr = reinterpret_cast<uint32_t *>(this->rmmio->getVirtualAddress());
 
         this->vramStart = static_cast<uint64_t>(this->readReg32(0x2980)) << 24;    // mmMC_VM_FB_LOCATION_BASE
-        this->vramEnd = static_cast<uint64_t>(this->readReg32(0x2981)) << 24;      // mmMC_VM_FB_LOCATION_TOP
-        this->fbOffset = static_cast<uint64_t>(this->readReg32(0x296B)) << 24;     // mmMC_VM_FB_OFFSET
+        this->vramSize = static_cast<uint64_t>(this->readReg32(0xDE3)) << 20;      // mmRCC_CONFIG_MEMSIZE
+        this->vramEnd = this->vramStart + this->vramSize;
+        this->fbOffset = static_cast<uint64_t>(this->readReg32(0x296B)) << 24;    // mmMC_VM_FB_OFFSET
+        DBGLOG("nred", "VRAM: %uM 0x%016X - 0x%016X", this->vramSize >> 20, this->vramStart, this->vramEnd);
         this->revision = (this->readReg32(0xD2F) & 0xF000000) >> 0x18;
         switch (this->deviceId) {
             case 0x15D8:

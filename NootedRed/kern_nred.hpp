@@ -225,6 +225,7 @@ class NRed {
     OSData *vbiosData {nullptr};
     ChipType chipType = ChipType::Unknown;
     uint64_t vramStart {0};
+    uint64_t vramSize {0};
     uint64_t vramEnd {0};
     uint64_t fbOffset {0};
     IOMemoryMap *rmmio {nullptr};

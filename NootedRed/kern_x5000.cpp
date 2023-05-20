@@ -523,7 +523,6 @@ void X5000::executeSDMAPTEPDEGen(uint64_t pe, uint64_t addr, uint32_t count, uin
     map->unmap();
     map->release();
     memDesc->release();
-    IOSleep(100);
 }
 
 void X5000::executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize, uint8_t vmid) {

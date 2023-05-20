@@ -314,9 +314,55 @@ uint64_t X5000::translateVA(uint64_t addr, uint8_t vmid, eAMD_VM_HUB_TYPE vmhubT
     return ret & AMDGPU_GMC_HOLE_MASK;
 }
 
-void X5000::executeSDMAFillBuffer(uint32_t srcData, uint64_t dstOffset, uint32_t byteCount, uint8_t vmid) {
-    DBGLOG("x5000", "executeSDMAFillBuffer << (srcData: 0x%X dstOffset: 0x%llX byteCount: 0x%X vmid: 0x%X)", srcData,
-        dstOffset, byteCount, vmid);
+void X5000::executeSDMAPollRegmem(bool memPoll, uint64_t addr, uint32_t ref, uint32_t mask, uint16_t retryCount,
+    uint16_t interval, uint8_t vmid) {
+    DBGLOG("x5000",
+        "executeSDMAPollRegmem << (memPoll: %u addr: 0x%llX ref: 0x%X mask: 0x%X retryCount: 0x%X interval: 0x%X vmid: "
+        "%u)",
+        memPoll, addr, ref, mask, retryCount, interval, vmid);
+    IOSleep(600);
+
+    bool isVA = false;
+    IOMemoryDescriptor *memDesc = nullptr;
+    IOMemoryMap *map = nullptr;
+    if (memPoll) {
+        if (isVRAMAddress(addr)) {
+            addr = vramToFbOffset(addr);
+        } else {
+            addr = translateVA(addr, vmid, eAMD_VM_HUB_TYPE::MM);
+            DBGLOG("x5000", "executeSDMAPollRegmem: VA translated to %p", addr);
+            IOSleep(600);
+            memDesc =
+                IOGeneralMemoryDescriptor::withPhysicalAddress(static_cast<IOPhysicalAddress>(addr), 4, kIODirectionIn);
+            map = memDesc->map();
+            addr = map->getVirtualAddress();
+            isVA = true;
+        }
+    }
+
+    for (uint32_t attempt = 0; attempt <= retryCount; attempt++) {
+        uint32_t val = 0;
+        if (memPoll) {
+            val = *(volatile uint32_t *)addr;
+        } else {
+            val = NRed::callback->readReg32(addr / 4);
+        }
+
+        if (val & mask == ref) break;
+        IOSleep(interval);
+    }
+
+    if (isVA) {
+        map->unmap();
+        map->release();
+        memDesc->release();
+    }
+}
+
+void X5000::executeSDMAConstFill(uint8_t fillSize, uint32_t srcData, uint64_t dstOffset, uint32_t byteCount,
+    uint8_t vmid) {
+    DBGLOG("x5000", "executeSDMAConstFill << (fillSize: %u srcData: 0x%X dstOffset: 0x%llX byteCount: 0x%X vmid: 0x%X)",
+        fillSize, srcData, dstOffset, byteCount, vmid);
     IOSleep(600);
 
     bool isVA = true;
@@ -336,7 +382,7 @@ void X5000::executeSDMAFillBuffer(uint32_t srcData, uint64_t dstOffset, uint32_t
 
         if (isVA) {
             dst = translateVA(dst, vmid, eAMD_VM_HUB_TYPE::MM);
-            DBGLOG("x5000", "executeSDMAFillBuffer: VA %p translated to %p", dstOffset, dst);
+            DBGLOG("x5000", "executeSDMAConstFill: VA %p translated to %p", dstOffset, dst);
             IOSleep(600);
             memDesc = IOGeneralMemoryDescriptor::withPhysicalAddress(static_cast<IOPhysicalAddress>(dst), toWrite,
                 kIODirectionOut);
@@ -344,17 +390,24 @@ void X5000::executeSDMAFillBuffer(uint32_t srcData, uint64_t dstOffset, uint32_t
             dst = map->getVirtualAddress();
         }
 
-        while (toWrite >= 4) {
-            *reinterpret_cast<uint32_t *>(dst) = srcData;
-            toWrite -= 4;
-            dst += 4;
-        }
+        while (toWrite >= fillSize) {
+            switch (fillSize) {
+                case 1:
+                    *reinterpret_cast<uint8_t *>(dst) = srcData & 0x000000FF;
+                    break;
+                case 3:
+                    *reinterpret_cast<uint8_t *>(dst + 2) = (srcData & 0x00FF0000) >> 0x10;
+                    [[fallthrough]];
+                case 2:
+                    *reinterpret_cast<uint16_t *>(dst) = srcData & 0x0000FFFF;
+                    break;
+                case 4:
+                    *reinterpret_cast<uint32_t *>(dst) = srcData;
+                    break;
+            }
 
-        if (toWrite >= 2) {
-            *reinterpret_cast<uint16_t *>(dst) = srcData & 0x0000FFFF;
-            if (toWrite == 3) { *reinterpret_cast<uint8_t *>(dst + 2) = (srcData & 0x00FF0000) >> 0x10; }
-        } else if (toWrite == 1) {
-            *reinterpret_cast<uint8_t *>(dst) = srcData & 0x000000FF;
+            toWrite -= fillSize;
+            dst += fillSize;
         }
 
         if (isVA) {
@@ -365,8 +418,8 @@ void X5000::executeSDMAFillBuffer(uint32_t srcData, uint64_t dstOffset, uint32_t
     }
 }
 
-void X5000::executeSDMAPTEPDE(uint64_t pe, uint64_t addr, uint32_t count, uint32_t incr, uint64_t flags) {
-    DBGLOG("x5000", "executeSDMAPTEPDE << (pe: 0x%llX addr: 0x%llX count: 0x%X incr: 0x%X flags: 0x%llX)", pe, addr,
+void X5000::executeSDMAPTEPDEGen(uint64_t pe, uint64_t addr, uint32_t count, uint32_t incr, uint64_t flags) {
+    DBGLOG("x5000", "executeSDMAPTEPDEGen << (pe: 0x%llX addr: 0x%llX count: 0x%X incr: 0x%X flags: 0x%llX)", pe, addr,
         count, incr, flags);
     IOSleep(600);
 
@@ -379,7 +432,7 @@ void X5000::executeSDMAPTEPDE(uint64_t pe, uint64_t addr, uint32_t count, uint32
 
     for (uint32_t i = 0; i < count; i++) {
         uint64_t toWrite = flags | addr;
-        DBGLOG("x5000", "executeSDMAPTEPDE: Writing 0x%llX to 0x%llx", toWrite, pe);
+        DBGLOG("x5000", "executeSDMAPTEPDEGen: Writing 0x%llX to 0x%llx", toWrite, pe);
         *(volatile uint64_t *)pe = toWrite;
         addr += incr;
         pe += 8;
@@ -394,31 +447,63 @@ void X5000::executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize, uint8_t vmid) {
     uint32_t i = 0;
     while (i < ibSize) {
         uint32_t dws = 0;
-        switch (ibPtr[i] & 0x000000FF) {
-            case 0x00:    // NOP
+        uint8_t op = ibPtr[i] & 0x0000FFFF;
+        switch (op) {
+            case 0x0000:    // SDMA_OP_NOP
                 dws = 1;
                 break;
-            case 0x0B:    // sdma_v4_0_emit_fill_buffer
+            case 0x0008:    // SDMA_OP_POLL_REGMEM
+                // sdma_v4_0_wait_reg_mem
+                dws = 6;
+                bool memPoll = ibPtr[i] >> 31;
+                uint8_t func = (ibPtr[i] >> 28) & 7;
+                uint32_t addr = (static_cast<uint64_t>(ibPtr[i + 2]) << 32) + ibPtr[i + 1];
+                uint32_t ref = ibPtr[i + 3];
+                uint32_t mask = ibPtr[i + 4];
+                uint16_t retryCount = (ibPtr[i + 5] >> 16) & 0xFFF;
+                uint16_t interval = ibPtr[i + 5] & 0xFFFF;
+
+                if (func != 3) {
+                    DBGLOG("x5000", "executeSDMAPollRegmem: Unknown func %u", func);
+                    return;
+                }
+                executeSDMAPollRegmem(memPoll, addr, ref, mask, retryCount, interval, vmid);
+            case 0x000B:    // SDMA_OP_CONST_FILL
+                // sdma_v4_0_emit_fill_buffer
                 dws = 5;
+                uint8_t fillSize = ibPtr[i] >> 30;
+                if (fillSize == 0) fillSize = 4;
                 uint64_t dstOffset = (static_cast<uint64_t>(ibPtr[i + 2]) << 32) + ibPtr[i + 1];
                 uint32_t srcData = ibPtr[i + 3];
                 uint32_t byteCount = ibPtr[i + 4] + 1;
-                executeSDMAFillBuffer(srcData, dstOffset, byteCount, vmid);
+                executeSDMAConstFill(fillSize, srcData, dstOffset, byteCount, vmid);
                 break;
-            case 0x0C:    // sdma_v4_0_vm_set_pte_pde
+            case 0x000C:    // SDMA_SUBOP_PTEPDE_GEN
+                // sdma_v4_0_vm_set_pte_pde
                 dws = 10;
                 uint64_t pe = (static_cast<uint64_t>(ibPtr[i + 2]) << 32) + ibPtr[i + 1];
                 uint64_t flags = (static_cast<uint64_t>(ibPtr[i + 4]) << 32) + ibPtr[i + 3];
                 uint64_t addr = (static_cast<uint64_t>(ibPtr[i + 6]) << 32) + ibPtr[i + 5];
                 uint32_t incr = ibPtr[i + 7];
                 uint32_t count = ibPtr[i + 9] + 1;
-                executeSDMAPTEPDE(pe, addr, count, incr, flags);
+                executeSDMAPTEPDEGen(pe, addr, count, incr, flags);
+                break;
+            case 0x000E:    // SDMA_OP_SRBM_WRITE
+                // sdma_v4_0_ring_emit_wreg
+                dws = 3;
+                uint32_t reg = ibPtr[i + 1];
+                uint32_t val = ibPtr[i + 2];
+                DBGLOG("x5000", "executeSDMASrbmWrite << (reg: 0x%X val: 0x%X)", reg, val);
+                IOSleep(600);
+                NRed::callback->writeReg32(reg, val);
                 break;
             default:
-                SYSLOG("x5000", "executeSDMAIB: Unknown opcode: 0x%08X", ibPtr[i]);
+                SYSLOG("x5000", "executeSDMAIB: Unknown op=%u subop=%u", op & 0xFF, op >> 8, ibPtr[i]);
+                IOSleep(600);
                 return;
         }
 
+        if (op == 0) continue;    // Keep the burst NOPs
         for (uint32_t k = 0; k < dws; k++) {
             ibPtr[i] = 0x00000000;
             i++;

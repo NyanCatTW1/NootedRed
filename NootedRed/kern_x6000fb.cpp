@@ -309,7 +309,6 @@ void X6000FB::wrapDumpBuffer(void *that, uint32_t logType, uint32_t logSeverity,
     // NRed::sleepLoop("Exiting wrapDumpBuffer", 600);
 }
 
-
 IOReturn X6000FB::wrapVendorDoDeviceAttribute(void *that, uint32_t cmd, void *param2, uint64_t param3, void *param4,
     void *param5, void *param6) {
     static uint32_t callId = 1;

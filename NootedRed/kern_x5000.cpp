@@ -281,7 +281,7 @@ void X5000::wrapWriteTail(void *that) {
             memDesc->release();
         }
 
-        NRed::sleepLoop("Calling orgWriteTail", 1000)!
+        NRed::sleepLoop("Calling orgWriteTail", 1000);
     }
 
     FunctionCast(wrapWriteTail, callback->orgWriteTail)(that);

@@ -235,7 +235,7 @@ void X5000::wrapWriteTail(void *that) {
 
     if (engineType == 1 || engineType == 2) {
         uint16_t tsOffset = wptr - 0x80;
-        for (uint16_t i = 0; i < 0x80; i++) { DBGLOG("x5000", "ring[%u] = 0x%X", i, ring[tsOffset + i]); }
+        for (uint16_t i = 0; i < 0x80; i++) { DBGLOG("x5000", "writeTail: ring[%u] = 0x%X", i, ring[tsOffset + i]); }
 
         for (uint16_t i = 10; i < 0x80; i += 8) {
             if ((ring[tsOffset + i] & 0xFF) != 4) {
@@ -262,6 +262,19 @@ void X5000::wrapWriteTail(void *that) {
                 DBGLOG("x5000", "ibPtr[%u] = 0x%08X", k, reinterpret_cast<uint32_t *>(ibPtr)[k]);
             }
             executeSDMAIB(reinterpret_cast<uint32_t *>(ibPtr), ibSize, vmid);
+
+            bool allZero = true;
+            for (uint32_t k = 0; k < ibSize; k++) {
+                DBGLOG("x5000", "writeTail: ibPtr[%u] = 0x%08X", k, reinterpret_cast<uint32_t *>(ibPtr)[k]);
+                allZero &= ibPtr[k] == 0;
+            }
+
+            if (allZero) {
+                DBGLOG("x5000", "writeTail: Removing IB command");
+                for (uint32_t k = 0; k < 4; k++) {
+                    ibPtr[i + k] = 0;
+                }
+            }
 
             map->unmap();
             map->release();
@@ -576,7 +589,6 @@ void X5000::executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize, uint8_t vmid) {
             IOSleep(600);
         }
 
-        if (op == 0) continue;    // Keep the burst NOPs
         for (uint32_t k = 0; k < dws; k++) {
             ibPtr[i] = 0x00000000;
             i++;

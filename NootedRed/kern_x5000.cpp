@@ -508,6 +508,7 @@ void X5000::executeSDMAPTEPDEGen(uint64_t pe, uint64_t addr, uint32_t count, uin
     map->unmap();
     map->release();
     memDesc->release();
+    IOSleep(100);
 }
 
 void X5000::executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize, uint8_t vmid) {
@@ -581,6 +582,8 @@ void X5000::executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize, uint8_t vmid) {
             i++;
         }
     }
+    
+    NRed::sleepLoop("Exiting executeSDMAIB", 1000);
 }
 void X5000::wrapDispPipeWriteDiagnosisReport(void *that, void *param2, void *param3) {
     DBGLOG("x5000", "dispPipeWriteDiagnosisReport << (that: %p param2: %p param3: %p)", that, param2, param3);

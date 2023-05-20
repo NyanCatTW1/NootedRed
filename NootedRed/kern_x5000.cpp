@@ -257,7 +257,9 @@ void X5000::wrapWriteTail(void *that) {
             auto *map = memDesc->map();
             ibPtr = map->getVirtualAddress();
 
-            for (uint32_t i = 0; i < ibSize; i++) { DBGLOG("x5000", "ibPtr[%u] = 0x%08X", i, ibPtr[i]); }
+            for (uint32_t i = 0; i < ibSize; i++) {
+                DBGLOG("x5000", "ibPtr[%u] = 0x%08X", i, reinterpret_cast<uint32_t *>(ibPtr)[i]);
+            }
             executeSDMAIB(reinterpret_cast<uint32_t *>(ibPtr), ibSize, vmid);
 
             map->unmap();
@@ -406,10 +408,10 @@ void X5000::executeSDMAPollRegmem(bool memPoll, uint64_t addr, uint32_t ref, uin
         if (memPoll) {
             val = *(volatile uint32_t *)addr;
         } else {
-            val = NRed::callback->readReg32(addr / 4);
+            val = NRed::callback->readReg32(static_cast<uint32_t>(addr) / 4);
         }
 
-        if (val & mask == ref) break;
+        if ((val & mask) == ref) break;
         IOSleep(interval);
     }
 
@@ -505,68 +507,62 @@ void X5000::executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize, uint8_t vmid) {
     while (i < ibSize) {
         uint32_t dws = 0;
         uint8_t op = ibPtr[i] & 0x0000FFFF;
-        switch (op) {
-            case 0x0000:    // SDMA_OP_NOP
-                dws = 1;
-                break;
-            case 0x0001:    // SDMA_SUBOP_COPY_LINEAR
-                // sdma_v4_0_emit_copy_buffer
-                dws = 7;
-                uint32_t byteCount = ibPtr[i + 1] + 1;
-                uint32_t srcOffset = (static_cast<uint64_t>(ibPtr[i + 4]) << 32) + ibPtr[i + 3];
-                uint32_t dstOffset = (static_cast<uint64_t>(ibPtr[i + 6]) << 32) + ibPtr[i + 5];
-                executeSDMACopyLinear(byteCount, srcOffset, dstOffset, vmid);
-            case 0x0008:    // SDMA_OP_POLL_REGMEM
-                // sdma_v4_0_wait_reg_mem
-                dws = 6;
-                bool memPoll = ibPtr[i] >> 31;
-                uint8_t func = (ibPtr[i] >> 28) & 7;
-                uint32_t addr = (static_cast<uint64_t>(ibPtr[i + 2]) << 32) + ibPtr[i + 1];
-                uint32_t ref = ibPtr[i + 3];
-                uint32_t mask = ibPtr[i + 4];
-                uint16_t retryCount = (ibPtr[i + 5] >> 16) & 0xFFF;
-                if (retryCount == 0) retryCount = 0xFFF;
-                uint16_t interval = ibPtr[i + 5] & 0xFFFF;
-                if (interval == 0) interval = 1;
+        if (op == 0x0000) {    // SDMA_OP_NOP
+            dws = 1;
+        } else if (op == 0x0001) {    // SDMA_SUBOP_COPY_LINEAR
+            // sdma_v4_0_emit_copy_buffer
+            dws = 7;
+            uint32_t byteCount = ibPtr[i + 1] + 1;
+            uint32_t srcOffset = (static_cast<uint64_t>(ibPtr[i + 4]) << 32) + static_cast<uint64_t>(ibPtr[i + 3]);
+            uint32_t dstOffset = (static_cast<uint64_t>(ibPtr[i + 6]) << 32) + static_cast<uint64_t>(ibPtr[i + 5]);
+            executeSDMACopyLinear(byteCount, srcOffset, dstOffset, vmid);
+        } else if (op == 0x0008) {    // SDMA_OP_POLL_REGMEM
+            // sdma_v4_0_wait_reg_mem
+            dws = 6;
+            bool memPoll = ibPtr[i] >> 31;
+            uint8_t func = (ibPtr[i] >> 28) & 7;
+            uint32_t addr = (static_cast<uint64_t>(ibPtr[i + 2]) << 32) + static_cast<uint64_t>(ibPtr[i + 1]);
+            uint32_t ref = ibPtr[i + 3];
+            uint32_t mask = ibPtr[i + 4];
+            uint16_t retryCount = (ibPtr[i + 5] >> 16) & 0xFFF;
+            if (retryCount == 0) retryCount = 0xFFF;
+            uint16_t interval = ibPtr[i + 5] & 0xFFFF;
+            if (interval == 0) interval = 1;
 
-                if (func != 3) {
-                    DBGLOG("x5000", "executeSDMAPollRegmem: Unknown func %u", func);
-                    return;
-                }
-                executeSDMAPollRegmem(memPoll, addr, ref, mask, retryCount, interval, vmid);
-            case 0x000B:    // SDMA_OP_CONST_FILL
-                // sdma_v4_0_emit_fill_buffer
-                dws = 5;
-                uint8_t fillSize = ibPtr[i] >> 30;
-                if (fillSize == 0) fillSize = 4;
-                uint64_t dstOffset = (static_cast<uint64_t>(ibPtr[i + 2]) << 32) + ibPtr[i + 1];
-                uint32_t srcData = ibPtr[i + 3];
-                uint32_t byteCount = ibPtr[i + 4] + 1;
-                executeSDMAConstFill(fillSize, srcData, dstOffset, byteCount, vmid);
-                break;
-            case 0x000C:    // SDMA_SUBOP_PTEPDE_GEN
-                // sdma_v4_0_vm_set_pte_pde
-                dws = 10;
-                uint64_t pe = (static_cast<uint64_t>(ibPtr[i + 2]) << 32) + ibPtr[i + 1];
-                uint64_t flags = (static_cast<uint64_t>(ibPtr[i + 4]) << 32) + ibPtr[i + 3];
-                uint64_t addr = (static_cast<uint64_t>(ibPtr[i + 6]) << 32) + ibPtr[i + 5];
-                uint32_t incr = ibPtr[i + 7];
-                uint32_t count = ibPtr[i + 9] + 1;
-                executeSDMAPTEPDEGen(pe, addr, count, incr, flags);
-                break;
-            case 0x000E:    // SDMA_OP_SRBM_WRITE
-                // sdma_v4_0_ring_emit_wreg
-                dws = 3;
-                uint32_t reg = ibPtr[i + 1];
-                uint32_t val = ibPtr[i + 2];
-                DBGLOG("x5000", "executeSDMASrbmWrite << (reg: 0x%X val: 0x%X)", reg, val);
-                IOSleep(600);
-                NRed::callback->writeReg32(reg, val);
-                break;
-            default:
-                SYSLOG("x5000", "executeSDMAIB: Unknown op=%u subop=%u", op & 0xFF, op >> 8, ibPtr[i]);
-                IOSleep(600);
+            if (func != 3) {
+                DBGLOG("x5000", "executeSDMAPollRegmem: Unknown func %u", func);
                 return;
+            }
+            executeSDMAPollRegmem(memPoll, addr, ref, mask, retryCount, interval, vmid);
+        } else if (op == 0x000B) {    // SDMA_OP_CONST_FILL
+            // sdma_v4_0_emit_fill_buffer
+            dws = 5;
+            uint8_t fillSize = ibPtr[i] >> 30;
+            if (fillSize == 0) fillSize = 4;
+            uint64_t dstOffset = (static_cast<uint64_t>(ibPtr[i + 2]) << 32) + static_cast<uint64_t>(ibPtr[i + 1]);
+            uint32_t srcData = ibPtr[i + 3];
+            uint32_t byteCount = ibPtr[i + 4] + 1;
+            executeSDMAConstFill(fillSize, srcData, dstOffset, byteCount, vmid);
+        } else if (op == 0x000C) {    // SDMA_SUBOP_PTEPDE_GEN
+            // sdma_v4_0_vm_set_pte_pde
+            dws = 10;
+            uint64_t pe = (static_cast<uint64_t>(ibPtr[i + 2]) << 32) + static_cast<uint64_t>(ibPtr[i + 1]);
+            uint64_t flags = (static_cast<uint64_t>(ibPtr[i + 4]) << 32) + static_cast<uint64_t>(ibPtr[i + 3]);
+            uint64_t addr = (static_cast<uint64_t>(ibPtr[i + 6]) << 32) + static_cast<uint64_t>(ibPtr[i + 5]);
+            uint32_t incr = ibPtr[i + 7];
+            uint32_t count = ibPtr[i + 9] + 1;
+            executeSDMAPTEPDEGen(pe, addr, count, incr, flags);
+        } else if (op == 0x000E) {    // SDMA_OP_SRBM_WRITE
+            // sdma_v4_0_ring_emit_wreg
+            dws = 3;
+            uint32_t reg = ibPtr[i + 1];
+            uint32_t val = ibPtr[i + 2];
+            DBGLOG("x5000", "executeSDMASrbmWrite << (reg: 0x%X val: 0x%X)", reg, val);
+            IOSleep(600);
+            NRed::callback->writeReg32(reg, val);
+        } else {
+            SYSLOG("x5000", "executeSDMAIB: Unknown op=%u subop=%u", op & 0xFF, op >> 8, ibPtr[i]);
+            IOSleep(600);
         }
 
         if (op == 0) continue;    // Keep the burst NOPs

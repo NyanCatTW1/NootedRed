@@ -37,7 +37,9 @@ bool X5000::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_t 
             {"__ZN30AMDRadeonX5000_AMDGFX9Hardware32setupAndInitializeHWCapabilitiesEv",
                 this->orgSetupAndInitializeHWCapabilities},
             {"__ZN26AMDRadeonX5000_AMDHardware14startHWEnginesEv", startHWEngines},
-            {"__ZN26AMDRadeonX5000_AMDHardware17dumpASICHangStateEb", this->orgdumpASICHangState},
+            {"__ZN26AMDRadeonX5000_AMDHardware17dumpASICHangStateEb", this->orgDumpASICHangState},
+            {"__ZN29AMDRadeonX5000_AMDHWVMContext7getVMPTEP12AMD_VMPT_CTL15eAMD_VMPT_LEVELyPyS3_S3_j",
+                this->orgGetVMPT},
         };
         PANIC_COND(!patcher.solveMultiple(index, solveRequests, address, size), "x5000", "Failed to resolve symbols");
 
@@ -76,6 +78,9 @@ bool X5000::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_t 
             {"__Z32AMDRadeonX5000_kprintfLongStringPKc", wrapAMDRadeonX5000KprintfLongString,
                 orgAMDRadeonX5000KprintfLongString},
             {"__ZN35AMDRadeonX5000_AMDAccelEventMachine12eventTimeoutEi", wrapEventTimeout, orgEventTimeout},
+            {"__ZN24AMDRadeonX5000_AMDHWGart4initEP30AMDRadeonX5000_IAMDHWInterfaceP16_GART_PARAMETERS", wrapHwGartInit,
+                orgHwGartInit},
+            {"__ZN25AMDRadeonX5000_AMDGFX9VMM4initEP30AMDRadeonX5000_IAMDHWInterface", wrapVmmInit, orgVmmInit},
         };
         PANIC_COND(!patcher.routeMultiple(index, requests, address, size), "x5000", "Failed to route symbols");
 
@@ -112,7 +117,7 @@ bool X5000::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_t 
 }
 
 bool X5000::wrapAllocateHWEngines(void *that) {
-    callback->amdHW = that;
+    callback->amdHw = that;
     callback->orgGFX9PM4EngineConstructor(getMember<void *>(that, 0x3B8) = IOMallocZero(0x1E8));
     callback->orgGFX9SDMAEngineConstructor(getMember<void *>(that, 0x3C0) = IOMallocZero(0x128));
     X6000::callback->orgVCN2EngineConstructor(getMember<void *>(that, 0x3F8) = IOMallocZero(0x198));
@@ -220,7 +225,7 @@ void X5000::wrapWriteTail(void *that) {
     DBGLOG("x5000", "writeTail call %u << (that: %p)", callId, that);
     callId++;
 
-    auto ring = getMembet<uint32_t *>(that 0, 40);
+    auto ring = getMember<uint32_t *>(that, 0x40);
     auto engineType = getMember<uint32_t>(that, 0x7c);
     auto rptr = getMember<uint16_t>(that, 0x50);
     auto wptr = getMember<uint16_t>(that, 0x58);
@@ -238,12 +243,26 @@ void X5000::wrapWriteTail(void *that) {
 
             // sdma_v4_0_ring_emit_ib
             uint8_t vmid = (ring[tsOffset + i] >> 16) & 0x10;
-            auto ibPtr = (static_cast<uint64_t>(ibPtr[tsOffset + i + 2]) << 32) + ibPtr[tsOffset + i + 1];
-            auto ibSize = ibPtr[tsOffset + i + 3];
+            auto ibPtr = (static_cast<uint64_t>(ring[tsOffset + i + 2]) << 32) + ring[tsOffset + i + 1];
+            auto ibSize = ring[tsOffset + i + 3];
             DBGLOG("x5000", "writeTail: IB at %p with VMID %u contains %u dword(s)", ibPtr, vmid, ibSize);
-            for (uint32_t i = 0; i < ibSize; i++) { DBGLOG("x5000", "ibPtr[%u] = 0x%08X", i, ibPtr[]); }
+            IOSleep(600);
 
-            executeSDMAIB(ibPtr, ibSize);
+            ibPtr = translateVA(ibPtr, vmid, eAMD_VM_HUB_TYPE::MM);
+            DBGLOG("x5000", "writeTail: IB's VA translated to %p", ibPtr);
+            IOSleep(600);
+
+            auto *memDesc = IOGeneralMemoryDescriptor::withPhysicalAddress(static_cast<IOPhysicalAddress>(ibPtr),
+                4 * ibSize, kIODirectionIn);
+            auto *map = memDesc->map();
+            ibPtr = map->getVirtualAddress();
+
+            for (uint32_t i = 0; i < ibSize; i++) { DBGLOG("x5000", "ibPtr[%u] = 0x%08X", i, ibPtr[i]); }
+            executeSDMAIB(reinterpret_cast<uint32_t *>(ibPtr), ibSize, vmid);
+
+            map->unmap();
+            map->release();
+            memDesc->release();
         }
     }
 
@@ -251,24 +270,79 @@ void X5000::wrapWriteTail(void *that) {
     callId++;
 }
 
+bool X5000::isVRAMAddress(uint64_t addr) { return NRed::callback->vramStart <= addr && addr < NRed::callback->vramEnd; }
+
 uint64_t X5000::vramToFbOffset(uint64_t addr) {
     addr -= NRed::callback->vramStart;
     addr += NRed::callback->fbOffset;
     return addr;
 }
 
-void X5000::executeSDMAFillBuffer(uint32_t srcData, uint64_t dstOffset, uint32_t byteCount) {
+uint64_t X5000::translateVA(uint64_t addr, uint8_t vmid, eAMD_VM_HUB_TYPE vmhubType) {
+    DBGLOG("x5000", "translateVA << (addr: 0x%llX vmid: %u vmhubType: %u)", addr, vmid, vmhubType);
+    uint64_t ret = 0;
+    if (vmid == 0) {
+        auto rangeStart = getMember<uint64_t>(callback->hwGart, 0x20);
+        auto rangeEnd = getMember<uint64_t>(callback->hwGart, 0x28);
+        auto *gartPTB = getMember<uint64_t *>(callback->hwGart, 0x58);
+        DBGLOG("x5000", "translateVA: rangeStart = 0x%llX, rangeEnd = 0x%llX, gartPTB = %p", rangeStart, rangeEnd,
+            gartPTB);
+        IOSleep(600);
+
+        if (addr < rangeStart || rangeEnd < addr) return 0;
+        ret = gartPTB[(addr - rangeStart) >> 12];
+    } else {
+        // getContextForVMID
+        auto vmContext = getMember<uint8_t *>(callback->vmm, 0x90 + vmid * 0x50 + vmhubType * 0x500);
+        auto ctlRoot = reinterpret_cast<void *>(vmContext + 0x90);
+        auto rangeStart = getMember<uint64_t>(vmContext, 0xAA0);
+        auto rangeEnd = getMember<uint64_t>(vmContext, 0xAA8);
+        DBGLOG("x5000", "translateVA: ctlRoot = %p, rangeStart = 0x%llX, rangeEnd = 0x%llX", ctlRoot, rangeStart,
+            rangeEnd);
+        IOSleep(600);
+
+        if (addr < rangeStart || rangeEnd < addr) return 0;
+        uint64_t virtAddrOffset = addr - rangeStart;
+        uint64_t sizeToPrint = 0x1000;
+        auto entriesBuf = IONew(uint64_t, 1);
+        uint32_t entriesFound =
+            callback->orgGetVMPT(vmContext, ctlRoot, 0, 0, &virtAddrOffset, &sizeToPrint, entriesBuf, 8);
+        if (entriesFound == 0) return 0;
+        ret = entriesBuf[0];
+    }
+
+    return ret & AMDGPU_GMC_HOLE_MASK;
+}
+
+void X5000::executeSDMAFillBuffer(uint32_t srcData, uint64_t dstOffset, uint32_t byteCount, uint8_t vmid) {
+    DBGLOG("x5000", "executeSDMAFillBuffer << (srcData: 0x%X dstOffset: 0x%llX byteCount: 0x%X vmid: 0x%X)", srcData,
+        dstOffset, byteCount, vmid);
+    IOSleep(600);
+
     bool isVA = true;
-    if (NRed::callback->vramStart <= dstOffset && dstOffset < NRed::callback->vramEnd) {
+    if (isVRAMAddress(dstOffset)) {
         dstOffset = vramToFbOffset(dstOffset);
         isVA = false;
     }
+
+    IOMemoryDescriptor *memDesc = nullptr;
+    IOMemoryMap *map = nullptr;
 
     while (byteCount != 0) {
         uint32_t toWrite = min(byteCount, 0x1000);
         uint64_t dst = dstOffset;
         dstOffset += toWrite;
         byteCount -= toWrite;
+
+        if (isVA) {
+            dst = translateVA(dst, vmid, eAMD_VM_HUB_TYPE::MM);
+            DBGLOG("x5000", "executeSDMAFillBuffer: VA %p translated to %p", dstOffset, dst);
+            IOSleep(600);
+            memDesc = IOGeneralMemoryDescriptor::withPhysicalAddress(static_cast<IOPhysicalAddress>(dst), toWrite,
+                kIODirectionOut);
+            map = memDesc->map();
+            dst = map->getVirtualAddress();
+        }
 
         while (toWrite >= 4) {
             *reinterpret_cast<uint32_t *>(dst) = srcData;
@@ -282,10 +356,20 @@ void X5000::executeSDMAFillBuffer(uint32_t srcData, uint64_t dstOffset, uint32_t
         } else if (toWrite == 1) {
             *reinterpret_cast<uint8_t *>(dst) = srcData & 0x000000FF;
         }
+
+        if (isVA) {
+            map->unmap();
+            map->release();
+            memDesc->release();
+        }
     }
 }
 
 void X5000::executeSDMAPTEPDE(uint64_t pe, uint64_t addr, uint32_t count, uint32_t incr, uint64_t flags) {
+    DBGLOG("x5000", "executeSDMAPTEPDE << (pe: 0x%llX addr: 0x%llX count: 0x%X incr: 0x%X flags: 0x%llX)", pe, addr,
+        count, incr, flags);
+    IOSleep(600);
+
     pe = vramToFbOffset(pe);
 
     auto *memDesc =
@@ -306,7 +390,7 @@ void X5000::executeSDMAPTEPDE(uint64_t pe, uint64_t addr, uint32_t count, uint32
     memDesc->release();
 }
 
-void X5000::executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize) {
+void X5000::executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize, uint8_t vmid) {
     uint32_t i = 0;
     while (i < ibSize) {
         uint32_t dws = 0;
@@ -319,7 +403,7 @@ void X5000::executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize) {
                 uint64_t dstOffset = (static_cast<uint64_t>(ibPtr[i + 2]) << 32) + ibPtr[i + 1];
                 uint32_t srcData = ibPtr[i + 3];
                 uint32_t byteCount = ibPtr[i + 4] + 1;
-                executeSDMAFillBuffer(srcData, dstOffset, byteCount);
+                executeSDMAFillBuffer(srcData, dstOffset, byteCount, vmid);
                 break;
             case 0x0C:    // sdma_v4_0_vm_set_pte_pde
                 dws = 10;
@@ -364,9 +448,21 @@ void X5000::wrapAMDRadeonX5000KprintfLongString(char *param1) {
 }
 
 void *X5000::wrapEventTimeout(void *that, uint32_t param1) {
-    if (param1 == 15) { callback->orgdumpASICHangState(callback->amdHW, false); }
+    if (param1 == 15) { callback->orgDumpASICHangState(callback->amdHw, false); }
     DBGLOG("x5000", "eventTimeout << (that: %p param1: 0x%X)", that, param1);
     auto ret = FunctionCast(wrapEventTimeout, callback->orgEventTimeout)(that, param1);
     DBGLOG("x5000", "eventTimeout >> %p", ret);
+    return ret;
+}
+
+bool X5000::wrapHwGartInit(void *that, void *param1, void *param2) {
+    callback->hwGart = that;
+    auto ret = FunctionCast(wrapHwGartInit, callback->orgHwGartInit)(that, param1, param2);
+    return ret;
+}
+
+bool X5000::wrapVmmInit(void *that, void *hw) {
+    callback->vmm = that;
+    auto ret = FunctionCast(wrapVmmInit, callback->orgVmmInit)(that, hw);
     return ret;
 }

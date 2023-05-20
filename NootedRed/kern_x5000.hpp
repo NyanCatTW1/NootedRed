@@ -18,7 +18,8 @@ class X5000 {
     private:
     t_GenericConstructor orgGFX9PM4EngineConstructor {nullptr};
     t_GenericConstructor orgGFX9SDMAEngineConstructor {nullptr};
-    t_dumpASICHangState orgdumpASICHangState {nullptr};
+    t_dumpASICHangState orgDumpASICHangState {nullptr};
+    t_getVMPT orgGetVMPT {nullptr};
     mach_vm_address_t orgSetupAndInitializeHWCapabilities {0};
     mach_vm_address_t orgGetHWChannel {0};
     mach_vm_address_t orgAdjustVRAMAddress {0};
@@ -30,10 +31,14 @@ class X5000 {
     mach_vm_address_t orgWriteASICHangLogInfo {0};
     mach_vm_address_t orgAMDRadeonX5000KprintfLongString {0};
     mach_vm_address_t orgEventTimeout {0};
+    mach_vm_address_t orgHwGartInit {0};
+    mach_vm_address_t orgVmmInit {0};
     void *hwAlignMgr {nullptr};
     uint8_t *hwAlignMgrVtX5000 {nullptr};
     uint8_t *hwAlignMgrVtX6000 {nullptr};
-    void *amdHW {nullptr};
+    void *amdHw {nullptr};
+    void *hwGart {nullptr};
+    void *vmm {nullptr};
 
     static bool wrapAllocateHWEngines(void *that);
     static void wrapSetupAndInitializeHWCapabilities(void *that);
@@ -52,10 +57,14 @@ class X5000 {
     static uint64_t wrapWriteASICHangLogInfo(void *that, void *param1);
     static void wrapAMDRadeonX5000KprintfLongString(char *param1);
     static void *wrapEventTimeout(void *that, uint32_t param1);
+    static bool wrapHwGartInit(void *that, void *param1, void *param2);
+    static bool wrapVmmInit(void *that, void *hw);
+    static bool isVRAMAddress(uint64_t addr);
     static uint64_t vramToFbOffset(uint64_t addr);
-    static void executeSDMAFillBuffer(uint32_t srcData, uint64_t dstOffset, uint32_t byteCount);
+    static uint64_t translateVA(uint64_t addr, uint8_t vmid, eAMD_VM_HUB_TYPE vmhubType);
+    static void executeSDMAFillBuffer(uint32_t srcData, uint64_t dstOffset, uint32_t byteCount, uint8_t vmid);
     static void executeSDMAPTEPDE(uint64_t pe, uint64_t addr, uint32_t count, uint32_t incr, uint64_t flags);
-    static void executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize);
+    static void executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize, uint8_t vmid);
 };
 
 #endif /* kern_x5000_hpp */

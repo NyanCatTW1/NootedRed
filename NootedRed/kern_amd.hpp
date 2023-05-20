@@ -7,6 +7,8 @@
 
 using t_GenericConstructor = void (*)(void *that);
 using t_dumpASICHangState = void (*)(void *that, bool param_1);
+using t_getVMPT = uint (*)(void *that, void *vmptCtl, uint32_t vmptLevel, uint64_t param_3, uint64_t *virtAddrOffsetPtr,
+    uint64_t *sizeToPrintPtr, uint64_t *entriesBuf, uint32_t entriesBufSize);
 
 constexpr uint32_t AMDGPU_FAMILY_RAVEN = 0x8E;
 
@@ -151,5 +153,10 @@ struct DeviceCapabilityEntry {
     const uint32_t *devAttrFlags;
     const void *goldenRegisterSetings, *doorbellRange;
 } PACKED;
+
+// Modified to remove PTE flags too
+constexpr uint64_t AMDGPU_GMC_HOLE_MASK = 0x0000FFFFFFFFF000ULL;
+
+enum eAMD_VM_HUB_TYPE { GFX, MM };
 
 #endif /* kern_amd.hpp */

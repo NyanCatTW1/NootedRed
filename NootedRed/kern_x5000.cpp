@@ -256,23 +256,23 @@ void X5000::wrapWriteTail(void *that) {
             auto *memDesc = IOGeneralMemoryDescriptor::withPhysicalAddress(static_cast<IOPhysicalAddress>(ibPtr),
                 4 * ibSize, kIODirectionIn);
             auto *map = memDesc->map();
-            ibPtr = map->getVirtualAddress();
+            auto ibBuf = reinterpret_cast<uint32_t *>(map->getVirtualAddress());
 
             for (uint32_t k = 0; k < ibSize; k++) {
-                DBGLOG("x5000", "ibPtr[%u] = 0x%08X", k, reinterpret_cast<uint32_t *>(ibPtr)[k]);
+                DBGLOG("x5000", "ibBuf[%u] = 0x%08X", k, ibBuf[k]);
             }
-            executeSDMAIB(reinterpret_cast<uint32_t *>(ibPtr), ibSize, vmid);
+            executeSDMAIB(ibBuf, ibSize, vmid);
 
             bool allZero = true;
             for (uint32_t k = 0; k < ibSize; k++) {
-                DBGLOG("x5000", "writeTail: ibPtr[%u] = 0x%08X", k, reinterpret_cast<uint32_t *>(ibPtr)[k]);
-                allZero &= ibPtr[k] == 0;
+                DBGLOG("x5000", "writeTail: ibBuf[%u] = 0x%08X", k, ibBuf[k]);
+                allZero &= ibBuf[k] == 0;
             }
 
             if (allZero) {
                 DBGLOG("x5000", "writeTail: Removing IB command");
                 for (uint32_t k = 0; k < 4; k++) {
-                    ibPtr[i + k] = 0;
+                    ring[i + k] = 0;
                 }
             }
 

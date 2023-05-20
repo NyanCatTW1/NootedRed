@@ -259,7 +259,7 @@ void X5000::wrapWriteTail(void *that) {
             auto ibBuf = reinterpret_cast<uint32_t *>(map->getVirtualAddress());
 
             for (uint32_t k = 0; k < ibSize; k++) {
-                DBGLOG("x5000", "ibBuf[%u] = 0x%08X", k, ibBuf[k]);
+                DBGLOG("x5000", "writeTail: ibBuf[%u] = 0x%08X", k, ibBuf[k]);
             }
             executeSDMAIB(ibBuf, ibSize, vmid);
 
@@ -280,6 +280,8 @@ void X5000::wrapWriteTail(void *that) {
             map->release();
             memDesc->release();
         }
+
+        NRed::sleepLoop("Calling orgWriteTail", 1000)!
     }
 
     FunctionCast(wrapWriteTail, callback->orgWriteTail)(that);
@@ -594,8 +596,6 @@ void X5000::executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize, uint8_t vmid) {
             i++;
         }
     }
-    
-    NRed::sleepLoop("Exiting executeSDMAIB", 1000);
 }
 void X5000::wrapDispPipeWriteDiagnosisReport(void *that, void *param2, void *param3) {
     DBGLOG("x5000", "dispPipeWriteDiagnosisReport << (that: %p param2: %p param3: %p)", that, param2, param3);

@@ -226,7 +226,7 @@ void X5000::wrapWriteTail(void *that) {
     callId++;
 
     auto ring = getMember<uint32_t *>(that, 0x40);
-    auto engineType = getMember<uint32_t>(that, 0x78);
+    auto engineType = getMember<uint32_t>(that, 0x7c);
     auto rptr = getMember<uint16_t>(that, 0x50);
     auto wptr = getMember<uint16_t>(that, 0x58);
     DBGLOG("x5000", "Engine type %u, RPTR (cached) = 0x%08X, WPTR = 0x%08X (TS 0x%08X)", engineType, rptr, wptr,
@@ -235,6 +235,8 @@ void X5000::wrapWriteTail(void *that) {
 
     if (engineType == 1 || engineType == 2) {
         uint16_t tsOffset = wptr - 0x80;
+        for (uint16_t i = 0; i < 0x80; i++) { DBGLOG("x5000", "ring[%u] = 0x%X", i, ring[tsOffset + i]); }
+
         for (uint16_t i = 10; i < 0x80; i += 8) {
             if (ring[tsOffset + i] % 0xFF != 4) {
                 // No IB left

@@ -252,15 +252,14 @@ void X5000::wrapWriteTail(void *that) {
 
             ibPtr = translateVA(ibPtr, vmid, eAMD_VM_HUB_TYPE::MM);
             DBGLOG("x5000", "writeTail: IB's VA translated to %p", ibPtr);
-            IOSleep(600);
 
             auto *memDesc = IOGeneralMemoryDescriptor::withPhysicalAddress(static_cast<IOPhysicalAddress>(ibPtr),
                 4 * ibSize, kIODirectionIn);
             auto *map = memDesc->map();
             ibPtr = map->getVirtualAddress();
 
-            for (uint32_t i = 0; i < ibSize; i++) {
-                DBGLOG("x5000", "ibPtr[%u] = 0x%08X", i, reinterpret_cast<uint32_t *>(ibPtr)[i]);
+            for (uint32_t k = 0; k < ibSize; k++) {
+                DBGLOG("x5000", "ibPtr[%u] = 0x%08X", k, reinterpret_cast<uint32_t *>(ibPtr)[k]);
             }
             executeSDMAIB(reinterpret_cast<uint32_t *>(ibPtr), ibSize, vmid);
 
@@ -290,9 +289,11 @@ uint64_t X5000::translateVA(uint64_t addr, uint8_t vmid, eAMD_VM_HUB_TYPE vmhubT
         auto *gartPTB = getMember<uint64_t *>(callback->hwGart, 0x58);
         DBGLOG("x5000", "translateVA: rangeStart = 0x%llX, rangeEnd = 0x%llX, gartPTB = %p", rangeStart, rangeEnd,
             gartPTB);
-        IOSleep(600);
 
-        if (addr < rangeStart || rangeEnd <= addr) return 0;
+        if (addr < rangeStart || rangeEnd <= addr) {
+            IOSleep(600);
+            return 0;
+        }
         ret = gartPTB[(addr - rangeStart) >> 12];
     } else {
         // getContextForVMID
@@ -302,15 +303,20 @@ uint64_t X5000::translateVA(uint64_t addr, uint8_t vmid, eAMD_VM_HUB_TYPE vmhubT
         auto rangeEnd = getMember<uint64_t>(vmContext, 0xAA8);
         DBGLOG("x5000", "translateVA: ctlRoot = %p, rangeStart = 0x%llX, rangeEnd = 0x%llX", ctlRoot, rangeStart,
             rangeEnd);
-        IOSleep(600);
 
-        if (addr < rangeStart || rangeEnd <= addr) return 0;
+        if (addr < rangeStart || rangeEnd <= addr) {
+            IOSleep(600);
+            return 0;
+        }
         uint64_t virtAddrOffset = addr - rangeStart;
         uint64_t sizeToPrint = 0x1000;
         auto entriesBuf = IONew(uint64_t, 1);
         uint32_t entriesFound =
             callback->orgGetVMPT(vmContext, ctlRoot, 0, 0, &virtAddrOffset, &sizeToPrint, entriesBuf, 8);
-        if (entriesFound == 0) return 0;
+        if (entriesFound == 0) {
+            IOSleep(600);
+            return 0;
+        }
         ret = entriesBuf[0];
     }
 
@@ -395,7 +401,6 @@ void X5000::executeSDMAPollRegmem(bool memPoll, uint64_t addr, uint32_t ref, uin
         } else {
             addr = translateVA(addr, vmid, eAMD_VM_HUB_TYPE::MM);
             DBGLOG("x5000", "executeSDMAPollRegmem: addr VA translated to %p", addr);
-            IOSleep(600);
         }
 
         memDesc =
@@ -427,7 +432,6 @@ void X5000::executeSDMAConstFill(uint8_t fillSize, uint32_t srcData, uint64_t ds
     uint8_t vmid) {
     DBGLOG("x5000", "executeSDMAConstFill << (fillSize: %u srcData: 0x%X dstOffset: 0x%llX byteCount: 0x%X vmid: 0x%X)",
         fillSize, srcData, dstOffset, byteCount, vmid);
-    IOSleep(600);
 
     bool isVA = true;
     if (isVRAMAddress(dstOffset)) {
@@ -444,7 +448,6 @@ void X5000::executeSDMAConstFill(uint8_t fillSize, uint32_t srcData, uint64_t ds
         if (isVA) {
             dst = translateVA(dst, vmid, eAMD_VM_HUB_TYPE::MM);
             DBGLOG("x5000", "executeSDMAConstFill: dstOffset VA %p translated to %p", dstOffset, dst);
-            IOSleep(600);
         }
 
         auto *memDesc = IOGeneralMemoryDescriptor::withPhysicalAddress(static_cast<IOPhysicalAddress>(dst), toWrite,
@@ -481,7 +484,6 @@ void X5000::executeSDMAConstFill(uint8_t fillSize, uint32_t srcData, uint64_t ds
 void X5000::executeSDMAPTEPDEGen(uint64_t pe, uint64_t addr, uint32_t count, uint32_t incr, uint64_t flags) {
     DBGLOG("x5000", "executeSDMAPTEPDEGen << (pe: 0x%llX addr: 0x%llX count: 0x%X incr: 0x%X flags: 0x%llX)", pe, addr,
         count, incr, flags);
-    IOSleep(600);
 
     pe = vramToFbOffset(pe);
 

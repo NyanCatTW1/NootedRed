@@ -283,6 +283,8 @@ uint64_t X5000::vramToFbOffset(uint64_t addr) {
 uint64_t X5000::translateVA(uint64_t addr, uint8_t vmid, eAMD_VM_HUB_TYPE vmhubType) {
     DBGLOG("x5000", "translateVA << (addr: 0x%llX vmid: %u vmhubType: %u)", addr, vmid, vmhubType);
     uint64_t ret = 0;
+    uint64_t virtAddrOffset = 0;
+    uint32_t pageSize = 0x1000;
     if (vmid == 0) {
         auto rangeStart = getMember<uint64_t>(callback->hwGart, 0x20);
         auto rangeEnd = rangeStart + getMember<uint64_t>(callback->hwGart, 0x28);
@@ -294,7 +296,8 @@ uint64_t X5000::translateVA(uint64_t addr, uint8_t vmid, eAMD_VM_HUB_TYPE vmhubT
             IOSleep(600);
             return 0;
         }
-        ret = gartPTB[(addr - rangeStart) >> 12];
+        virtAddrOffset = addr - rangeStart;
+        ret = gartPTB[virtAddrOffset >> 12];
     } else {
         // getContextForVMID
         auto vmContext = getMember<uint8_t *>(callback->vmm, 0x90 + vmid * 0x50 + vmhubType * 0x500);
@@ -308,11 +311,11 @@ uint64_t X5000::translateVA(uint64_t addr, uint8_t vmid, eAMD_VM_HUB_TYPE vmhubT
             IOSleep(600);
             return 0;
         }
-        uint64_t virtAddrOffset = addr - rangeStart;
-        uint64_t sizeToPrint = 0x1000;
+        virtAddrOffset = addr - rangeStart;
+
         auto entriesBuf = IONew(uint64_t, 1);
         uint32_t entriesFound =
-            callback->orgGetVMPT(vmContext, ctlRoot, 0, 0, &virtAddrOffset, &sizeToPrint, entriesBuf, 8);
+            callback->orgGetVMPT(vmContext, ctlRoot, 0, 0, &virtAddrOffset, &pageSize, entriesBuf, 8);
         if (entriesFound == 0) {
             IOSleep(600);
             return 0;
@@ -320,7 +323,9 @@ uint64_t X5000::translateVA(uint64_t addr, uint8_t vmid, eAMD_VM_HUB_TYPE vmhubT
         ret = entriesBuf[0];
     }
 
-    return ret & AMDGPU_GMC_HOLE_MASK;
+    ret &= AMDGPU_GMC_HOLE_MASK;
+    ret += virtAddrOffset & (pageSize - 1);
+    return ret;
 }
 
 void X5000::executeSDMACopyLinear(uint32_t byteCount, uint64_t srcOffset, uint64_t dstOffset, uint8_t vmid) {

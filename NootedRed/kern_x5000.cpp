@@ -254,7 +254,7 @@ void X5000::wrapWriteTail(void *that) {
             DBGLOG("x5000", "writeTail: IB's VA translated to 0x%llX", ibPtr);
 
             auto *memDesc = IOGeneralMemoryDescriptor::withPhysicalAddress(static_cast<IOPhysicalAddress>(ibPtr),
-                4 * ibSize, kIODirectionIn);
+                4 * ibSize, kIODirectionOutIn);
             auto *map = memDesc->map();
             auto ibBuf = reinterpret_cast<uint32_t *>(map->getVirtualAddress());
 

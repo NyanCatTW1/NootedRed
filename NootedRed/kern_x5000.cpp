@@ -286,13 +286,13 @@ uint64_t X5000::translateVA(uint64_t addr, uint8_t vmid, eAMD_VM_HUB_TYPE vmhubT
     uint64_t ret = 0;
     if (vmid == 0) {
         auto rangeStart = getMember<uint64_t>(callback->hwGart, 0x20);
-        auto rangeEnd = getMember<uint64_t>(callback->hwGart, 0x28);
+        auto rangeEnd = rangeStart + getMember<uint64_t>(callback->hwGart, 0x28);
         auto *gartPTB = getMember<uint64_t *>(callback->hwGart, 0x58);
         DBGLOG("x5000", "translateVA: rangeStart = 0x%llX, rangeEnd = 0x%llX, gartPTB = %p", rangeStart, rangeEnd,
             gartPTB);
         IOSleep(600);
 
-        if (addr < rangeStart || rangeEnd < addr) return 0;
+        if (addr < rangeStart || rangeEnd <= addr) return 0;
         ret = gartPTB[(addr - rangeStart) >> 12];
     } else {
         // getContextForVMID
@@ -304,7 +304,7 @@ uint64_t X5000::translateVA(uint64_t addr, uint8_t vmid, eAMD_VM_HUB_TYPE vmhubT
             rangeEnd);
         IOSleep(600);
 
-        if (addr < rangeStart || rangeEnd < addr) return 0;
+        if (addr < rangeStart || rangeEnd <= addr) return 0;
         uint64_t virtAddrOffset = addr - rangeStart;
         uint64_t sizeToPrint = 0x1000;
         auto entriesBuf = IONew(uint64_t, 1);

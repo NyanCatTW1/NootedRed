@@ -226,7 +226,7 @@ void X5000::wrapWriteTail(void *that) {
     callId++;
 
     auto ring = getMember<uint32_t *>(that, 0x40);
-    auto engineType = getMember<uint32_t>(that, 0x7c);
+    auto engineType = getMember<uint32_t>(that, 0x78);
     auto rptr = getMember<uint16_t>(that, 0x50);
     auto wptr = getMember<uint16_t>(that, 0x58);
     DBGLOG("x5000", "Engine type %u, RPTR (cached) = 0x%08X, WPTR = 0x%08X (TS 0x%08X)", engineType, rptr, wptr,
@@ -269,7 +269,6 @@ void X5000::wrapWriteTail(void *that) {
     }
 
     FunctionCast(wrapWriteTail, callback->orgWriteTail)(that);
-    callId++;
 }
 
 bool X5000::isVRAMAddress(uint64_t addr) { return NRed::callback->vramStart <= addr && addr < NRed::callback->vramEnd; }

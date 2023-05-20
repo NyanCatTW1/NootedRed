@@ -247,11 +247,11 @@ void X5000::wrapWriteTail(void *that) {
             uint8_t vmid = (ring[tsOffset + i] >> 16) & 0x10;
             auto ibPtr = (static_cast<uint64_t>(ring[tsOffset + i + 2]) << 32) + ring[tsOffset + i + 1];
             auto ibSize = ring[tsOffset + i + 3];
-            DBGLOG("x5000", "writeTail: IB at %p with VMID %u contains %u dword(s)", ibPtr, vmid, ibSize);
+            DBGLOG("x5000", "writeTail: IB at 0x%llX with VMID %u contains %u dword(s)", ibPtr, vmid, ibSize);
             IOSleep(600);
 
             ibPtr = translateVA(ibPtr, vmid, eAMD_VM_HUB_TYPE::MM);
-            DBGLOG("x5000", "writeTail: IB's VA translated to %p", ibPtr);
+            DBGLOG("x5000", "writeTail: IB's VA translated to 0x%llX", ibPtr);
 
             auto *memDesc = IOGeneralMemoryDescriptor::withPhysicalAddress(static_cast<IOPhysicalAddress>(ibPtr),
                 4 * ibSize, kIODirectionIn);
@@ -284,7 +284,7 @@ uint64_t X5000::translateVA(uint64_t addr, uint8_t vmid, eAMD_VM_HUB_TYPE vmhubT
     DBGLOG("x5000", "translateVA << (addr: 0x%llX vmid: %u vmhubType: %u)", addr, vmid, vmhubType);
     uint64_t ret = 0;
     uint64_t virtAddrOffset = 0;
-    uint32_t pageSize = 0x1000;
+    uint64_t pageSize = 0x1000;
     if (vmid == 0) {
         auto rangeStart = getMember<uint64_t>(callback->hwGart, 0x20);
         auto rangeEnd = rangeStart + getMember<uint64_t>(callback->hwGart, 0x28);
@@ -359,7 +359,7 @@ void X5000::executeSDMACopyLinear(uint32_t byteCount, uint64_t srcOffset, uint64
 
         if (srcIsVA) {
             src = translateVA(src, vmid, eAMD_VM_HUB_TYPE::MM);
-            DBGLOG("x5000", "executeSDMACopyLinear: srcOffset VA %p translated to %p", srcOffset, src);
+            DBGLOG("x5000", "executeSDMACopyLinear: srcOffset VA 0x%llX translated to 0x%llX", srcOffset, src);
         }
 
         srcMemDesc = IOGeneralMemoryDescriptor::withPhysicalAddress(static_cast<IOPhysicalAddress>(src), toWrite,
@@ -369,7 +369,7 @@ void X5000::executeSDMACopyLinear(uint32_t byteCount, uint64_t srcOffset, uint64
 
         if (dstIsVA) {
             dst = translateVA(dst, vmid, eAMD_VM_HUB_TYPE::MM);
-            DBGLOG("x5000", "executeSDMACopyLinear: dstOffset VA %p translated to %p", dstOffset, dst);
+            DBGLOG("x5000", "executeSDMACopyLinear: dstOffset VA 0x%llX translated to 0x%llX", dstOffset, dst);
             ;
         }
 
@@ -405,7 +405,7 @@ void X5000::executeSDMAPollRegmem(bool memPoll, uint64_t addr, uint32_t ref, uin
             addr = vramToFbOffset(addr);
         } else {
             addr = translateVA(addr, vmid, eAMD_VM_HUB_TYPE::MM);
-            DBGLOG("x5000", "executeSDMAPollRegmem: addr VA translated to %p", addr);
+            DBGLOG("x5000", "executeSDMAPollRegmem: addr VA translated to 0x%llX", addr);
         }
 
         memDesc =
@@ -452,7 +452,7 @@ void X5000::executeSDMAConstFill(uint8_t fillSize, uint32_t srcData, uint64_t ds
 
         if (isVA) {
             dst = translateVA(dst, vmid, eAMD_VM_HUB_TYPE::MM);
-            DBGLOG("x5000", "executeSDMAConstFill: dstOffset VA %p translated to %p", dstOffset, dst);
+            DBGLOG("x5000", "executeSDMAConstFill: dstOffset VA 0x%llX translated to 0x%llX", dstOffset, dst);
         }
 
         auto *memDesc = IOGeneralMemoryDescriptor::withPhysicalAddress(static_cast<IOPhysicalAddress>(dst), toWrite,
@@ -499,7 +499,7 @@ void X5000::executeSDMAPTEPDEGen(uint64_t pe, uint64_t addr, uint32_t count, uin
 
     for (uint32_t i = 0; i < count; i++) {
         uint64_t toWrite = flags | addr;
-        DBGLOG("x5000", "executeSDMAPTEPDEGen: Writing 0x%llX to 0x%llx", toWrite, pe);
+        DBGLOG("x5000", "executeSDMAPTEPDEGen: Writing 0x%llX to 0x%llX", toWrite, pe);
         *(volatile uint64_t *)pe = toWrite;
         addr += incr;
         pe += 8;
@@ -513,6 +513,8 @@ void X5000::executeSDMAPTEPDEGen(uint64_t pe, uint64_t addr, uint32_t count, uin
 void X5000::executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize, uint8_t vmid) {
     uint32_t i = 0;
     while (i < ibSize) {
+        DBGLOG("x5000", "executeSDMAIB: Now at dw %u", i);
+        IOSleep(10);
         uint32_t dws = 0;
         uint8_t op = ibPtr[i] & 0x0000FFFF;
         if (op == 0x0000) {    // SDMA_OP_NOP

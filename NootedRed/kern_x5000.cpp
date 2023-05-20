@@ -525,7 +525,9 @@ void X5000::executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize, uint8_t vmid) {
                 uint32_t ref = ibPtr[i + 3];
                 uint32_t mask = ibPtr[i + 4];
                 uint16_t retryCount = (ibPtr[i + 5] >> 16) & 0xFFF;
+                if (retryCount == 0) retryCount = 0xFFF;
                 uint16_t interval = ibPtr[i + 5] & 0xFFFF;
+                if (interval == 0) interval = 1;
 
                 if (func != 3) {
                     DBGLOG("x5000", "executeSDMAPollRegmem: Unknown func %u", func);

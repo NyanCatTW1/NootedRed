@@ -62,6 +62,7 @@ class X5000 {
     static bool isVRAMAddress(uint64_t addr);
     static uint64_t vramToFbOffset(uint64_t addr);
     static uint64_t translateVA(uint64_t addr, uint8_t vmid, eAMD_VM_HUB_TYPE vmhubType);
+    static void executeSDMACopyLinear(uint32_t byteCount, uint64_t srcOffset, uint64_t dstOffset, uint8_t vmid);
     static void executeSDMAPollRegmem(bool memPoll, uint64_t addr, uint32_t ref, uint32_t mask, uint16_t retryCount,
         uint16_t interval, uint8_t vmid);
     static void executeSDMAConstFill(uint8_t fillSize, uint32_t srcData, uint64_t dstOffset, uint32_t byteCount,

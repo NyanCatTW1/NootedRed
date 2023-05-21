@@ -86,6 +86,7 @@ bool X5000::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_t 
             {"__ZN30AMDRadeonX5000_AMDDMAHWChannel4initEiP30AMDRadeonX5000_IAMDHWInterfaceP27AMDRadeonX5000_"
              "IAMDHWEngineP25AMDRadeonX5000_IAMDHWRingPKc",
                 wrapDmaHwChannelInit, orgDmaHwChannelInit},
+            {"__ZN15BltMgrContainer6CreateEPK15_UBM_CREATEINFO", wrapBltMgrContainerCreate, orgBltMgrContainerCreate},
         };
         PANIC_COND(!patcher.routeMultiple(index, requests, address, size), "x5000", "Failed to route symbols");
 
@@ -238,7 +239,7 @@ void X5000::wrapWriteTail(void *that) {
         wptr / ((engineType == 1 || engineType == 2) ? 0x80 : 0x20));
     NRed::i386_backtrace();
 
-    if (engineType == 1 || engineType == 2) {
+    if ((engineType == 1 || engineType == 2) && NRed::callback->chipType >= ChipType::Renoir) {
         uint16_t tsOffset = wptr - 0x80;
         for (uint16_t i = 0; i < 0x80; i++) { DBGLOG("x5000", "writeTail: ring[%u] = 0x%X", i, ring[tsOffset + i]); }
 
@@ -567,6 +568,7 @@ void X5000::executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize, uint8_t vmid) {
         } else if (op == 0x0501) {    // CIK_SDMA_COPY_SUB_OPCODE_TILED_SUB_WINDOW
             // si_sdma_v4_v5_copy_texture from mesa
             dws = 14;
+            DBGLOG("x5000", "executeSDMAIB: Ignoring CIK_SDMA_COPY_SUB_OPCODE_TILED_SUB_WINDOW");
         } else if (op == 0x0008) {    // SDMA_OP_POLL_REGMEM
             // sdma_v4_0_wait_reg_mem
             dws = 6;
@@ -668,5 +670,11 @@ bool X5000::wrapDmaHwChannelInit(void *that, uint32_t param2, void *param3, void
     callback->sdmaHwChannel = that;
     auto ret =
         FunctionCast(wrapDmaHwChannelInit, callback->orgDmaHwChannelInit)(that, param2, param3, param4, param5, param6);
+    return ret;
+}
+
+void *X5000::wrapBltMgrContainerCreate(void *param1) {
+    auto ret = FunctionCast(wrapBltMgrContainerCreate, callback->orgBltMgrContainerCreate)(param1);
+    if (NRed::callback->chipType >= ChipType::Renoir) { getMember<void *>(ret, 0x10) = nullptr; }
     return ret;
 }

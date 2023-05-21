@@ -296,6 +296,8 @@ void X5000::wrapWriteTail(void *that) {
                 i += 5;
             } else {
                 DBGLOG("x5000", "writeTail: Unknown op=0x%X", op);
+                IOSleep(600);
+                break;
             }
         }
 

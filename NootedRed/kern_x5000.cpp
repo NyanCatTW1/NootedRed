@@ -244,7 +244,7 @@ void X5000::wrapWriteTail(void *that) {
 
         uint8_t i = 0;
         while (i < 0x80) {
-            uint8_t op = ring[tsOffset + i] & 0xFFFF;
+            uint16_t op = ring[tsOffset + i] & 0xFFFF;
             if (op == 0) {    // SDMA_OP_NOP
                 i++;
             } else if (op == 4) {    // SDMA_OP_INDIRECT
@@ -554,7 +554,7 @@ void X5000::executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize, uint8_t vmid) {
         DBGLOG("x5000", "executeSDMAIB: Now at dw %u", i);
         IOSleep(10);
         uint32_t dws = 0;
-        uint8_t op = ibPtr[i] & 0x0000FFFF;
+        uint16_t op = ibPtr[i] & 0x0000FFFF;
         if (op == 0x0000) {    // SDMA_OP_NOP
             dws = 1;
         } else if (op == 0x0001) {    // SDMA_SUBOP_COPY_LINEAR

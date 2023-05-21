@@ -279,6 +279,7 @@ void X5000::wrapWriteTail(void *that) {
 
                 fence = translateVA(fence, 0, eAMD_VM_HUB_TYPE::MM);
                 DBGLOG("x5000", "writeTail: fence's VA translated to 0x%llX", fence);
+                NRed::sleepLoop("Writing fence", 600);
 
                 auto *memDesc = IOGeneralMemoryDescriptor::withPhysicalAddress(static_cast<IOPhysicalAddress>(fence), 4,
                     kIODirectionOut);
@@ -302,9 +303,10 @@ void X5000::wrapWriteTail(void *that) {
             }
         }
 
+        NRed::sleepLoop("Writing RPTR/WPTR", 600);
         NRed::callback->writeReg32(0x1260 + 0x83, wptr << 2);    // mmSDMA0_GFX_RB_RPTR
         NRed::callback->writeReg32(0x1260 + 0x85, wptr << 2);    // mmSDMA0_GFX_RB_WPTR
-        callback->orgTimeStampInterruptCallback(callback->sdmaHwChannel, nullptr);
+        // callback->orgTimeStampInterruptCallback(callback->sdmaHwChannel, nullptr);
         return;
     }
 

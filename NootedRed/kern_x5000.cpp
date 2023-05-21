@@ -40,6 +40,8 @@ bool X5000::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_t 
             {"__ZN26AMDRadeonX5000_AMDHardware17dumpASICHangStateEb", this->orgDumpASICHangState},
             {"__ZN29AMDRadeonX5000_AMDHWVMContext7getVMPTEP12AMD_VMPT_CTL15eAMD_VMPT_LEVELyPyS3_S3_j",
                 this->orgGetVMPT},
+            {"__ZN27AMDRadeonX5000_AMDHWChannel26timeStampInterruptCallbackEP8OSObjectPv",
+                this->orgTimeStampInterruptCallback},
         };
         PANIC_COND(!patcher.solveMultiple(index, solveRequests, address, size), "x5000", "Failed to resolve symbols");
 
@@ -81,6 +83,9 @@ bool X5000::processKext(KernelPatcher &patcher, size_t index, mach_vm_address_t 
             {"__ZN24AMDRadeonX5000_AMDHWGart4initEP30AMDRadeonX5000_IAMDHWInterfaceP16_GART_PARAMETERS", wrapHwGartInit,
                 orgHwGartInit},
             {"__ZN25AMDRadeonX5000_AMDGFX9VMM4initEP30AMDRadeonX5000_IAMDHWInterface", wrapVmmInit, orgVmmInit},
+            {"__ZN30AMDRadeonX5000_AMDDMAHWChannel4initEiP30AMDRadeonX5000_IAMDHWInterfaceP27AMDRadeonX5000_"
+             "IAMDHWEngineP25AMDRadeonX5000_IAMDHWRingPKc",
+                wrapDmaHwChannelInit, orgDmaHwChannelInit},
         };
         PANIC_COND(!patcher.routeMultiple(index, requests, address, size), "x5000", "Failed to route symbols");
 
@@ -230,58 +235,75 @@ void X5000::wrapWriteTail(void *that) {
     auto rptr = getMember<uint16_t>(that, 0x50);
     auto wptr = getMember<uint16_t>(that, 0x58);
     DBGLOG("x5000", "Engine type %u, RPTR (cached) = 0x%08X, WPTR = 0x%08X (TS 0x%08X)", engineType, rptr, wptr,
-        wptr / 0x80);
+        wptr / ((engineType == 1 || engineType == 2) ? 0x80 : 0x20));
     NRed::i386_backtrace();
 
     if (engineType == 1 || engineType == 2) {
         uint16_t tsOffset = wptr - 0x80;
         for (uint16_t i = 0; i < 0x80; i++) { DBGLOG("x5000", "writeTail: ring[%u] = 0x%X", i, ring[tsOffset + i]); }
 
-        for (uint16_t i = 10; i < 0x80; i += 8) {
-            if ((ring[tsOffset + i] & 0xFF) != 4) {
-                // No IB left
+        uint8_t i = 0;
+        while (i < 0x80) {
+            uint8_t op = ring[tsOffset + i] & 0xFFFF;
+            if (op == 0) {    // SDMA_OP_NOP
+                i++;
+            }
+            if (op == 4) {    // SDMA_OP_INDIRECT
+                // sdma_v4_0_ring_emit_ib
+                uint8_t vmid = (ring[tsOffset + i] >> 16) & 0x10;
+                auto ibPtr = (static_cast<uint64_t>(ring[tsOffset + i + 2]) << 32) + ring[tsOffset + i + 1];
+                auto ibSize = ring[tsOffset + i + 3];
+                DBGLOG("x5000", "writeTail: IB at 0x%llX with VMID %u contains %u dword(s)", ibPtr, vmid, ibSize);
+                IOSleep(600);
+
+                ibPtr = translateVA(ibPtr, 0, eAMD_VM_HUB_TYPE::MM);
+                DBGLOG("x5000", "writeTail: IB's VA translated to 0x%llX", ibPtr);
+
+                auto *memDesc = IOGeneralMemoryDescriptor::withPhysicalAddress(static_cast<IOPhysicalAddress>(ibPtr),
+                    4 * ibSize, kIODirectionOutIn);
+                auto *map = memDesc->map();
+                auto ibBuf = reinterpret_cast<uint32_t *>(map->getVirtualAddress());
+
+                for (uint32_t k = 0; k < ibSize; k++) { DBGLOG("x5000", "writeTail: ibBuf[%u] = 0x%08X", k, ibBuf[k]); }
+                executeSDMAIB(ibBuf, ibSize, vmid);
+
+                map->unmap();
+                map->release();
+                memDesc->release();
+                i += 4;
+            } else if (op == 5) {    // SDMA_OP_FENCE
+                // sdma_v4_0_ring_emit_fence
+                auto fence = (static_cast<uint64_t>(ring[tsOffset + i + 2]) << 32) + ring[tsOffset + i + 1];
+                auto seq = ring[tsOffset + i + 3];
+                DBGLOG("x5000", "writeTail: Setting fence at 0x%llX to 0x%X", fence, seq);
+
+                fence = translateVA(fence, 0, eAMD_VM_HUB_TYPE::MM);
+                DBGLOG("x5000", "writeTail: fence's VA translated to 0x%llX", fence);
+
+                auto *memDesc = IOGeneralMemoryDescriptor::withPhysicalAddress(static_cast<IOPhysicalAddress>(fence), 4,
+                    kIODirectionOut);
+                auto *map = memDesc->map();
+                auto fence = reinterpret_cast<uint32_t *>(map->getVirtualAddress());
+                *reinterpret_cast<volatile uint32_t *>(fence) = seq;
+
+                map->unmap();
+                map->release();
+                memDesc->release();
+                i += 4;
+            } else if (op == 6) {    // SDMA_OP_TRAP
                 break;
+            } else if (op == 9) {    // SDMA_OP_COND_EXE
+                // XXX: Is it a good idea to ignore this?
+                i += 5;
+            } else {
+                DBGLOG("x5000", "writeTail: Unknown op=0x%X", op);
             }
-
-            // sdma_v4_0_ring_emit_ib
-            uint8_t vmid = (ring[tsOffset + i] >> 16) & 0x10;
-            auto ibPtr = (static_cast<uint64_t>(ring[tsOffset + i + 2]) << 32) + ring[tsOffset + i + 1];
-            auto ibSize = ring[tsOffset + i + 3];
-            DBGLOG("x5000", "writeTail: IB at 0x%llX with VMID %u contains %u dword(s)", ibPtr, vmid, ibSize);
-            IOSleep(600);
-
-            ibPtr = translateVA(ibPtr, vmid, eAMD_VM_HUB_TYPE::MM);
-            DBGLOG("x5000", "writeTail: IB's VA translated to 0x%llX", ibPtr);
-
-            auto *memDesc = IOGeneralMemoryDescriptor::withPhysicalAddress(static_cast<IOPhysicalAddress>(ibPtr),
-                4 * ibSize, kIODirectionOutIn);
-            auto *map = memDesc->map();
-            auto ibBuf = reinterpret_cast<uint32_t *>(map->getVirtualAddress());
-
-            for (uint32_t k = 0; k < ibSize; k++) {
-                DBGLOG("x5000", "writeTail: ibBuf[%u] = 0x%08X", k, ibBuf[k]);
-            }
-            executeSDMAIB(ibBuf, ibSize, vmid);
-
-            bool allZero = true;
-            for (uint32_t k = 0; k < ibSize; k++) {
-                DBGLOG("x5000", "writeTail: ibBuf[%u] = 0x%08X", k, ibBuf[k]);
-                allZero &= ibBuf[k] == 0;
-            }
-
-            if (allZero) {
-                DBGLOG("x5000", "writeTail: Removing IB command");
-                for (uint32_t k = 0; k < 4; k++) {
-                    ring[i + k] = 0;
-                }
-            }
-
-            map->unmap();
-            map->release();
-            memDesc->release();
         }
 
-        NRed::sleepLoop("Calling orgWriteTail", 1000);
+        NRed::callback->writeReg32(0x1260 + 0x83, wptr << 2);    // mmSDMA0_GFX_RB_RPTR
+        NRed::callback->writeReg32(0x1260 + 0x85, wptr << 2);    // mmSDMA0_GFX_RB_WPTR
+        callback->orgTimeStampInterruptCallback(callback->sdmaHwChannel, nullptr);
+        return;
     }
 
     FunctionCast(wrapWriteTail, callback->orgWriteTail)(that);
@@ -541,6 +563,9 @@ void X5000::executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize, uint8_t vmid) {
             uint32_t srcOffset = (static_cast<uint64_t>(ibPtr[i + 4]) << 32) + static_cast<uint64_t>(ibPtr[i + 3]);
             uint32_t dstOffset = (static_cast<uint64_t>(ibPtr[i + 6]) << 32) + static_cast<uint64_t>(ibPtr[i + 5]);
             executeSDMACopyLinear(byteCount, srcOffset, dstOffset, vmid);
+        } else if (op == 0x0501) {    // CIK_SDMA_COPY_SUB_OPCODE_TILED_SUB_WINDOW
+            // si_sdma_v4_v5_copy_texture from mesa
+            dws = 14;
         } else if (op == 0x0008) {    // SDMA_OP_POLL_REGMEM
             // sdma_v4_0_wait_reg_mem
             dws = 6;
@@ -635,5 +660,12 @@ bool X5000::wrapHwGartInit(void *that, void *param1, void *param2) {
 bool X5000::wrapVmmInit(void *that, void *hw) {
     callback->vmm = that;
     auto ret = FunctionCast(wrapVmmInit, callback->orgVmmInit)(that, hw);
+    return ret;
+}
+
+bool X5000::wrapDmaHwChannelInit(void *that, uint32_t param2, void *param3, void *param4, void *param5, char *param6) {
+    callback->sdmaHwChannel = that;
+    auto ret =
+        FunctionCast(wrapDmaHwChannelInit, callback->orgDmaHwChannelInit)(that, param2, param3, param4, param5, param6);
     return ret;
 }

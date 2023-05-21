@@ -9,6 +9,7 @@ using t_GenericConstructor = void (*)(void *that);
 using t_dumpASICHangState = void (*)(void *that, bool param_1);
 using t_getVMPT = uint (*)(void *that, void *vmptCtl, uint32_t vmptLevel, uint64_t param_3, uint64_t *virtAddrOffsetPtr,
     uint64_t *sizeToPrintPtr, uint64_t *entriesBuf, uint32_t entriesBufSize);
+using t_timeStampInterruptCallback = void (*)(void *that, void *param_2);
 
 constexpr uint32_t AMDGPU_FAMILY_RAVEN = 0x8E;
 

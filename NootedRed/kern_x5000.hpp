@@ -20,6 +20,7 @@ class X5000 {
     t_GenericConstructor orgGFX9SDMAEngineConstructor {nullptr};
     t_dumpASICHangState orgDumpASICHangState {nullptr};
     t_getVMPT orgGetVMPT {nullptr};
+    t_timeStampInterruptCallback orgTimeStampInterruptCallback {nullptr};
     mach_vm_address_t orgSetupAndInitializeHWCapabilities {0};
     mach_vm_address_t orgGetHWChannel {0};
     mach_vm_address_t orgAdjustVRAMAddress {0};
@@ -33,12 +34,14 @@ class X5000 {
     mach_vm_address_t orgEventTimeout {0};
     mach_vm_address_t orgHwGartInit {0};
     mach_vm_address_t orgVmmInit {0};
+    mach_vm_address_t orgDmaHwChannelInit {0};
     void *hwAlignMgr {nullptr};
     uint8_t *hwAlignMgrVtX5000 {nullptr};
     uint8_t *hwAlignMgrVtX6000 {nullptr};
     void *amdHw {nullptr};
     void *hwGart {nullptr};
     void *vmm {nullptr};
+    void *sdmaHwChannel {nullptr};
 
     static bool wrapAllocateHWEngines(void *that);
     static void wrapSetupAndInitializeHWCapabilities(void *that);
@@ -59,6 +62,8 @@ class X5000 {
     static void *wrapEventTimeout(void *that, uint32_t param1);
     static bool wrapHwGartInit(void *that, void *param1, void *param2);
     static bool wrapVmmInit(void *that, void *hw);
+    static bool wrapDmaHwChannelInit(void *that, uint32_t param2, void *param3, void *param4, void *param5,
+        char *param6);
     static bool isVRAMAddress(uint64_t addr);
     static uint64_t vramToFbOffset(uint64_t addr);
     static uint64_t translateVA(uint64_t addr, uint8_t vmid, eAMD_VM_HUB_TYPE vmhubType);

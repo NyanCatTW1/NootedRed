@@ -255,20 +255,31 @@ void X5000::wrapWriteTail(void *that) {
                 auto ibSize = ring[tsOffset + i + 3];
                 DBGLOG("x5000", "writeTail: IB at 0x%llX with VMID %u contains %u dword(s)", ibPtr, vmid, ibSize);
 
-                ibPtr = translateVA(ibPtr, 0, eAMD_VM_HUB_TYPE::MM);
-                DBGLOG("x5000", "writeTail: IB's VA translated to 0x%llX", ibPtr);
+                auto ibBuf = reinterpret_cast<uint32_t *>(IONew(uint32_t, ibSize));
+                auto ibBufDst = reinterpret_cast<uint8_t *>(ibBuf);
+                auto sizeLeft = ibSize * 4;
+                while (sizeLeft != 0) {
+                    uint32_t bytesToCopy = min(sizeLeft, 0x1000 - (ibPtr & 0xFFF));
+                    uint64_t translated = translateVA(ibPtr, 0, eAMD_VM_HUB_TYPE::MM);
+                    DBGLOG("x5000", "writeTail: IB's VA translated to 0x%llX", translated);
 
-                auto *memDesc = IOGeneralMemoryDescriptor::withPhysicalAddress(static_cast<IOPhysicalAddress>(ibPtr),
-                    4 * ibSize, kIODirectionOutIn);
-                auto *map = memDesc->map();
-                auto ibBuf = reinterpret_cast<uint32_t *>(map->getVirtualAddress());
+                    auto *memDesc = IOGeneralMemoryDescriptor::withPhysicalAddress(
+                        static_cast<IOPhysicalAddress>(translated), bytesToCopy, kIODirectionIn);
+                    auto *map = memDesc->map();
+                    auto mapped = reinterpret_cast<uint8_t *>(map->getVirtualAddress());
+
+                    memcpy(ibBufDst, mapped, bytesToCopy);
+                    map->unmap();
+                    map->release();
+                    memDesc->release();
+
+                    sizeLeft -= bytesToCopy;
+                    ibBufDst += bytesToCopy;
+                    ibPtr += bytesToCopy;
+                }
 
                 for (uint32_t k = 0; k < ibSize; k++) { DBGLOG("x5000", "writeTail: ibBuf[%u] = 0x%08X", k, ibBuf[k]); }
                 executeSDMAIB(ibBuf, ibSize, vmid);
-
-                map->unmap();
-                map->release();
-                memDesc->release();
                 i += 4;
             } else if (op == 5) {    // SDMA_OP_FENCE
                 // sdma_v4_0_ring_emit_fence
@@ -389,7 +400,7 @@ void X5000::executeSDMACopyLinear(uint32_t byteCount, uint64_t srcOffset, uint64
     }
 
     while (byteCount != 0) {
-        uint32_t toWrite = min(byteCount, 0x1000);
+        uint32_t toWrite = min(byteCount, 0x1000 - max(srcOffset & 0xFFF, dstOffset & 0xFFF));
         uint64_t src = srcOffset;
         uint64_t dst = dstOffset;
         srcOffset += toWrite;
@@ -486,7 +497,7 @@ void X5000::executeSDMAConstFill(uint8_t fillSize, uint32_t srcData, uint64_t ds
     }
 
     while (byteCount != 0) {
-        uint32_t toWrite = min(byteCount, 0x1000);
+        uint32_t toWrite = min(byteCount, 0x1000 - (dstOffset & 0xFFF));
         uint64_t dst = dstOffset;
         dstOffset += toWrite;
         byteCount -= toWrite;
@@ -560,21 +571,20 @@ void X5000::executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize, uint8_t vmid) {
         uint32_t dws = 0;
         uint16_t op = ibPtr[i] & 0x0000FFFF;
         if (op == 0x0000) {    // SDMA_OP_NOP
-            dws = 1;
+            i++;
         } else if (op == 0x0001) {    // SDMA_SUBOP_COPY_LINEAR
             // sdma_v4_0_emit_copy_buffer
-            dws = 7;
             uint32_t byteCount = ibPtr[i + 1] + 1;
             uint64_t srcOffset = (static_cast<uint64_t>(ibPtr[i + 4]) << 32) + static_cast<uint64_t>(ibPtr[i + 3]);
             uint64_t dstOffset = (static_cast<uint64_t>(ibPtr[i + 6]) << 32) + static_cast<uint64_t>(ibPtr[i + 5]);
             executeSDMACopyLinear(byteCount, srcOffset, dstOffset, vmid);
+            i += 7;
         } else if (op == 0x0501) {    // CIK_SDMA_COPY_SUB_OPCODE_TILED_SUB_WINDOW
             // si_sdma_v4_v5_copy_texture from mesa
-            dws = 14;
             DBGLOG("x5000", "executeSDMAIB: Ignoring CIK_SDMA_COPY_SUB_OPCODE_TILED_SUB_WINDOW");
+            i += 14;
         } else if (op == 0x0008) {    // SDMA_OP_POLL_REGMEM
             // sdma_v4_0_wait_reg_mem
-            dws = 6;
             bool memPoll = ibPtr[i] >> 31;
             uint8_t func = (ibPtr[i] >> 28) & 7;
             uint64_t addr = (static_cast<uint64_t>(ibPtr[i + 2]) << 32) + static_cast<uint64_t>(ibPtr[i + 1]);
@@ -590,40 +600,37 @@ void X5000::executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize, uint8_t vmid) {
                 return;
             }
             executeSDMAPollRegmem(memPoll, addr, ref, mask, retryCount, interval, vmid);
+            i += 6;
         } else if (op == 0x000B) {    // SDMA_OP_CONST_FILL
             // sdma_v4_0_emit_fill_buffer
-            dws = 5;
             uint8_t fillSize = ibPtr[i] >> 30;
             if (fillSize == 0) fillSize = 4;
             uint64_t dstOffset = (static_cast<uint64_t>(ibPtr[i + 2]) << 32) + static_cast<uint64_t>(ibPtr[i + 1]);
             uint32_t srcData = ibPtr[i + 3];
             uint32_t byteCount = ibPtr[i + 4] + 1;
             executeSDMAConstFill(fillSize, srcData, dstOffset, byteCount, vmid);
+            i += 5;
         } else if (op == 0x000C) {    // SDMA_SUBOP_PTEPDE_GEN
             // sdma_v4_0_vm_set_pte_pde
-            dws = 10;
             uint64_t pe = (static_cast<uint64_t>(ibPtr[i + 2]) << 32) + static_cast<uint64_t>(ibPtr[i + 1]);
             uint64_t flags = (static_cast<uint64_t>(ibPtr[i + 4]) << 32) + static_cast<uint64_t>(ibPtr[i + 3]);
             uint64_t addr = (static_cast<uint64_t>(ibPtr[i + 6]) << 32) + static_cast<uint64_t>(ibPtr[i + 5]);
             uint32_t incr = ibPtr[i + 7];
             uint32_t count = ibPtr[i + 9] + 1;
             executeSDMAPTEPDEGen(pe, addr, count, incr, flags);
+            i += 10;
         } else if (op == 0x000E) {    // SDMA_OP_SRBM_WRITE
             // sdma_v4_0_ring_emit_wreg
-            dws = 3;
             uint32_t reg = ibPtr[i + 1];
             uint32_t val = ibPtr[i + 2];
             DBGLOG("x5000", "executeSDMASrbmWrite << (reg: 0x%X val: 0x%X)", reg, val);
             IOSleep(600);
             NRed::callback->writeReg32(reg, val);
+            i += 3;
         } else {
             SYSLOG("x5000", "executeSDMAIB: Unknown opcode 0x%X", ibPtr[i]);
             IOSleep(600);
-        }
-
-        for (uint32_t k = 0; k < dws; k++) {
-            ibPtr[i] = 0x00000000;
-            i++;
+            break;
         }
     }
 }

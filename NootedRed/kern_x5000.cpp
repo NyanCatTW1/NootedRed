@@ -254,7 +254,6 @@ void X5000::wrapWriteTail(void *that) {
                 auto ibPtr = (static_cast<uint64_t>(ring[tsOffset + i + 2]) << 32) + ring[tsOffset + i + 1];
                 auto ibSize = ring[tsOffset + i + 3];
                 DBGLOG("x5000", "writeTail: IB at 0x%llX with VMID %u contains %u dword(s)", ibPtr, vmid, ibSize);
-                IOSleep(600);
 
                 ibPtr = translateVA(ibPtr, 0, eAMD_VM_HUB_TYPE::MM);
                 DBGLOG("x5000", "writeTail: IB's VA translated to 0x%llX", ibPtr);
@@ -279,7 +278,6 @@ void X5000::wrapWriteTail(void *that) {
 
                 fence = translateVA(fence, 0, eAMD_VM_HUB_TYPE::MM);
                 DBGLOG("x5000", "writeTail: fence's VA translated to 0x%llX", fence);
-                NRed::sleepLoop("Writing fence", 600);
 
                 auto *memDesc = IOGeneralMemoryDescriptor::withPhysicalAddress(static_cast<IOPhysicalAddress>(fence), 4,
                     kIODirectionOut);
@@ -303,10 +301,9 @@ void X5000::wrapWriteTail(void *that) {
             }
         }
 
-        NRed::sleepLoop("Writing RPTR/WPTR", 600);
         NRed::callback->writeReg32(0x1260 + 0x83, wptr << 2);    // mmSDMA0_GFX_RB_RPTR
         NRed::callback->writeReg32(0x1260 + 0x85, wptr << 2);    // mmSDMA0_GFX_RB_WPTR
-        // callback->orgTimeStampInterruptCallback(callback->sdmaHwChannel, nullptr);
+        callback->orgTimeStampInterruptCallback(callback->sdmaHwChannel, nullptr);
         return;
     }
 
@@ -365,6 +362,7 @@ uint64_t X5000::translateVA(uint64_t addr, uint8_t vmid, eAMD_VM_HUB_TYPE vmhubT
     }
 
     ret &= AMDGPU_GMC_HOLE_MASK;
+    if (ret == 0) { IOSleep(600); }
     ret += virtAddrOffset & (pageSize - 1);
     return ret;
 }
@@ -642,7 +640,6 @@ uint64_t X5000::wrapWriteASICHangLogInfo(void *that, void *param1) {
 void X5000::wrapAMDRadeonX5000KprintfLongString(char *param1) {
     DBGLOG("x5000", "AMDRadeonX5000_kprintfLongString << (param1: %s)", param1);
     NRed::i386_backtrace();
-    NRed::sleepLoop("Calling orgAMDRadeonX5000KprintfLongString");
     FunctionCast(wrapAMDRadeonX5000KprintfLongString, callback->orgAMDRadeonX5000KprintfLongString)(param1);
     DBGLOG("x5000", "AMDRadeonX5000_kprintfLongString >> void");
     NRed::sleepLoop("Exiting wrapAMDRadeonX5000KprintfLongString", 3000);

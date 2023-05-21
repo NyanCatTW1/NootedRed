@@ -242,7 +242,8 @@ void X5000::wrapWriteTail(void *that) {
     if ((engineType == 1 || engineType == 2) && NRed::callback->chipType >= ChipType::Renoir) {
         uint16_t tsOffset = wptr - 0x80;
         for (uint16_t i = 0; i < 0x80; i++) { DBGLOG("x5000", "writeTail: ring[%u] = 0x%X", i, ring[tsOffset + i]); }
-        ring[tsOffset + 47] = 0;
+
+        /*ring[tsOffset + 47] = 0;
         // NRed::sleepLoop("Calling writeTail", 1000);
         FunctionCast(wrapWriteTail, callback->orgWriteTail)(that);
         IOSleep(50);
@@ -261,9 +262,9 @@ void X5000::wrapWriteTail(void *that) {
         map->unmap();
         map->release();
         memDesc->release();
-        return;
+        return;*/
 
-        /*uint8_t i = 0;
+        uint8_t i = 0;
         while (i < 0x80) {
             uint16_t op = ring[tsOffset + i] & 0xFFFF;
             if (op == 0) {    // SDMA_OP_NOP
@@ -335,7 +336,7 @@ void X5000::wrapWriteTail(void *that) {
         NRed::callback->writeReg32(0x1260 + 0x83, wptr << 2);    // mmSDMA0_GFX_RB_RPTR
         NRed::callback->writeReg32(0x1260 + 0x85, wptr << 2);    // mmSDMA0_GFX_RB_WPTR
         callback->orgTimeStampInterruptCallback(callback->sdmaHwChannel, nullptr);
-        return;*/
+        return;
     }
 
     FunctionCast(wrapWriteTail, callback->orgWriteTail)(that);
@@ -468,7 +469,6 @@ void X5000::executeSDMAPollRegmem(bool memPoll, uint64_t addr, uint32_t ref, uin
         "executeSDMAPollRegmem << (memPoll: %u addr: 0x%llX ref: 0x%X mask: 0x%X retryCount: 0x%X interval: 0x%X vmid: "
         "%u)",
         memPoll, addr, ref, mask, retryCount, interval, vmid);
-    IOSleep(600);
 
     IOMemoryDescriptor *memDesc = nullptr;
     IOMemoryMap *map = nullptr;
@@ -615,11 +615,12 @@ void X5000::executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize, uint8_t vmid) {
             uint16_t interval = ibPtr[i + 5] & 0xFFFF;
             if (interval == 0) interval = 1;
 
-            if (func != 3) {
+            /*if (func != 3) {
                 DBGLOG("x5000", "executeSDMAPollRegmem: Unknown func %u", func);
                 return;
             }
-            executeSDMAPollRegmem(memPoll, addr, ref, mask, retryCount, interval, vmid);
+            executeSDMAPollRegmem(memPoll, addr, ref, mask, retryCount, interval, vmid);*/
+            IOSleep(100);
             i += 6;
         } else if (op == 0x000B) {    // SDMA_OP_CONST_FILL
             // sdma_v4_0_emit_fill_buffer
@@ -644,7 +645,6 @@ void X5000::executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize, uint8_t vmid) {
             uint32_t reg = ibPtr[i + 1];
             uint32_t val = ibPtr[i + 2];
             DBGLOG("x5000", "executeSDMASrbmWrite << (reg: 0x%X val: 0x%X)", reg, val);
-            IOSleep(600);
             NRed::callback->writeReg32(reg, val);
             i += 3;
         } else {

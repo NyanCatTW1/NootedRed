@@ -528,8 +528,9 @@ void X5000::executeSDMAConstFill(uint8_t fillSize, uint32_t srcData, uint64_t ds
 }
 
 void X5000::executeSDMAPTEPDEGen(uint64_t pe, uint64_t addr, uint32_t count, uint32_t incr, uint64_t flags) {
-    DBGLOG("x5000", "executeSDMAPTEPDEGen << (pe: 0x%llX addr: 0x%llX count: 0x%X incr: 0x%X flags: 0x%llX)", pe, addr,
-        count, incr, flags);
+    // DBGLOG("x5000", "executeSDMAPTEPDEGen << (pe: 0x%llX addr: 0x%llX count: 0x%X incr: 0x%X flags: 0x%llX)", pe,
+    // addr,
+    //     count, incr, flags);
 
     pe = vramToFbOffset(pe);
 
@@ -540,7 +541,7 @@ void X5000::executeSDMAPTEPDEGen(uint64_t pe, uint64_t addr, uint32_t count, uin
 
     for (uint32_t i = 0; i < count; i++) {
         uint64_t toWrite = flags | addr;
-        DBGLOG("x5000", "executeSDMAPTEPDEGen: Writing 0x%llX to 0x%llX", toWrite, pe);
+        // DBGLOG("x5000", "executeSDMAPTEPDEGen: Writing 0x%llX to 0x%llX", toWrite, pe);
         *(volatile uint64_t *)pe = toWrite;
         addr += incr;
         pe += 8;
@@ -554,7 +555,7 @@ void X5000::executeSDMAPTEPDEGen(uint64_t pe, uint64_t addr, uint32_t count, uin
 void X5000::executeSDMAIB(uint32_t *ibPtr, uint32_t ibSize, uint8_t vmid) {
     uint32_t i = 0;
     while (i < ibSize) {
-        DBGLOG("x5000", "executeSDMAIB: Now at dw %u", i);
+        // DBGLOG("x5000", "executeSDMAIB: Now at dw %u", i);
         IOSleep(10);
         uint32_t dws = 0;
         uint16_t op = ibPtr[i] & 0x0000FFFF;

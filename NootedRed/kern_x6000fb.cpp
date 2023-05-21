@@ -317,7 +317,7 @@ IOReturn X6000FB::wrapVendorDoDeviceAttribute(void *that, uint32_t cmd, void *pa
         "param6: %p)",
         callId, that, cmd, param2, param3, param4, param5, param6);
     NRed::i386_backtrace();*/
-    if (cmd == 0x1301) { NRed::sleepLoop("Calling orgVendorDoDeviceAttribute", 60000); }
+    // if (cmd == 0x1301) { NRed::sleepLoop("Calling orgVendorDoDeviceAttribute", 60000); }
     auto ret = FunctionCast(wrapVendorDoDeviceAttribute, callback->orgVendorDoDeviceAttribute)(that, cmd, param2,
         param3, param4, param5, param6);
     // DBGLOG("x6000fb", "vendor_doDeviceAttribute >> 0x%X", ret);

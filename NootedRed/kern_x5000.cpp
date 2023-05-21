@@ -243,7 +243,7 @@ void X5000::wrapWriteTail(void *that) {
         uint16_t tsOffset = wptr - 0x80;
         for (uint16_t i = 0; i < 0x80; i++) { DBGLOG("x5000", "writeTail: ring[%u] = 0x%X", i, ring[tsOffset + i]); }
         ring[tsOffset + 47] = 0;
-        NRed::sleepLoop("Calling writeTail", 1000);
+        // NRed::sleepLoop("Calling writeTail", 1000);
         FunctionCast(wrapWriteTail, callback->orgWriteTail)(that);
         IOSleep(50);
         callback->orgTimeStampInterruptCallback(callback->sdmaHwChannel, nullptr);

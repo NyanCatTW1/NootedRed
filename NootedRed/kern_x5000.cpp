@@ -247,8 +247,7 @@ void X5000::wrapWriteTail(void *that) {
             uint8_t op = ring[tsOffset + i] & 0xFFFF;
             if (op == 0) {    // SDMA_OP_NOP
                 i++;
-            }
-            if (op == 4) {    // SDMA_OP_INDIRECT
+            } else if (op == 4) {    // SDMA_OP_INDIRECT
                 // sdma_v4_0_ring_emit_ib
                 uint8_t vmid = (ring[tsOffset + i] >> 16) & 0x10;
                 auto ibPtr = (static_cast<uint64_t>(ring[tsOffset + i + 2]) << 32) + ring[tsOffset + i + 1];

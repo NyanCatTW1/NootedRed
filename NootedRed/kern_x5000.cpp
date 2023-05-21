@@ -401,9 +401,11 @@ void X5000::executeSDMACopyLinear(uint32_t byteCount, uint64_t srcOffset, uint64
             DBGLOG("x5000", "executeSDMACopyLinear: srcOffset VA 0x%llX translated to 0x%llX", srcOffset, src);
         }
 
+        DBGLOG("x5000", "executeSDMACopyLinear: About to map 0x%llX", src);
         srcMemDesc = IOGeneralMemoryDescriptor::withPhysicalAddress(static_cast<IOPhysicalAddress>(src), toWrite,
             kIODirectionIn);
         srcMap = srcMemDesc->map();
+        if (srcMap == nullptr) IOSleep(60000);
         src = srcMap->getVirtualAddress();
 
         if (dstIsVA) {

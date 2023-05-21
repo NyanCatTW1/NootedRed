@@ -172,7 +172,7 @@ AMDReturn X5000HWLibs::wrapSmuRavenInitialize(void *smum, uint32_t param2) {
 
 AMDReturn X5000HWLibs::wrapSmuRenoirInitialize(void *smum, uint32_t param2) {
     auto ret = FunctionCast(wrapSmuRenoirInitialize, callback->orgSmuRenoirInitialize)(smum, param2);
-    // callback->orgRenoirSendMsgToSmcWithParameter(smum, PPSMC_MSG_PowerUpSdma, 0);
+    callback->orgRenoirSendMsgToSmcWithParameter(smum, PPSMC_MSG_PowerUpSdma, 0);
     return ret;
 }
 

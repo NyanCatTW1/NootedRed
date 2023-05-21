@@ -247,6 +247,20 @@ void X5000::wrapWriteTail(void *that) {
         FunctionCast(wrapWriteTail, callback->orgWriteTail)(that);
         IOSleep(50);
         callback->orgTimeStampInterruptCallback(callback->sdmaHwChannel, nullptr);
+
+        auto fence = (static_cast<uint64_t>(ring[tsOffset + 45]) << 32) + ring[tsOffset + 44];
+        fence = translateVA(fence, 0, eAMD_VM_HUB_TYPE::MM);
+        DBGLOG("x5000", "writeTail: fence's VA translated to 0x%llX", fence);
+
+        auto *memDesc =
+            IOGeneralMemoryDescriptor::withPhysicalAddress(static_cast<IOPhysicalAddress>(fence), 4, kIODirectionIn);
+        auto *map = memDesc->map();
+        fence = map->getVirtualAddress();
+        DBGLOG("x5000", "writeTail: Current fence value is 0x%X", fence);
+
+        map->unmap();
+        map->release();
+        memDesc->release();
         return;
 
         /*uint8_t i = 0;

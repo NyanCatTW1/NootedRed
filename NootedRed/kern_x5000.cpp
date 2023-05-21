@@ -242,8 +242,14 @@ void X5000::wrapWriteTail(void *that) {
     if ((engineType == 1 || engineType == 2) && NRed::callback->chipType >= ChipType::Renoir) {
         uint16_t tsOffset = wptr - 0x80;
         for (uint16_t i = 0; i < 0x80; i++) { DBGLOG("x5000", "writeTail: ring[%u] = 0x%X", i, ring[tsOffset + i]); }
+        ring[tsOffset + 47] = 0;
+        NRed::sleepLoop("Calling writeTail", 1000);
+        FunctionCast(wrapWriteTail, callback->orgWriteTail)(that);
+        IOSleep(50);
+        callback->orgTimeStampInterruptCallback(callback->sdmaHwChannel, nullptr);
+        return;
 
-        uint8_t i = 0;
+        /*uint8_t i = 0;
         while (i < 0x80) {
             uint16_t op = ring[tsOffset + i] & 0xFFFF;
             if (op == 0) {    // SDMA_OP_NOP
@@ -315,7 +321,7 @@ void X5000::wrapWriteTail(void *that) {
         NRed::callback->writeReg32(0x1260 + 0x83, wptr << 2);    // mmSDMA0_GFX_RB_RPTR
         NRed::callback->writeReg32(0x1260 + 0x85, wptr << 2);    // mmSDMA0_GFX_RB_WPTR
         callback->orgTimeStampInterruptCallback(callback->sdmaHwChannel, nullptr);
-        return;
+        return;*/
     }
 
     FunctionCast(wrapWriteTail, callback->orgWriteTail)(that);
